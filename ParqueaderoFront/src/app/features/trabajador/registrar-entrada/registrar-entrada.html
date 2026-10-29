@@ -1,0 +1,332 @@
+<section class="mx-auto max-w-4xl">
+
+  <div class="mb-8 flex flex-col gap-2">
+
+    <p
+      class="text-sm font-semibold text-emerald-600"
+    >
+      Entrada de vehículo
+    </p>
+
+    <h1
+      class="text-2xl font-bold text-slate-950 sm:text-3xl"
+    >
+      Registrar entrada
+    </h1>
+
+    <p
+      class="max-w-2xl text-sm leading-6 text-slate-500"
+    >
+      Registra la información del vehículo que ingresa
+      al parqueadero. La fecha y la hora se guardarán
+      automáticamente.
+    </p>
+
+  </div>
+
+
+  @if (mensajeExito()) {
+
+    <div
+      class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-medium text-emerald-800"
+    >
+      {{ mensajeExito() }}
+    </div>
+
+  }
+
+
+  @if (mensajeError()) {
+
+    <div
+      class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+    >
+      {{ mensajeError() }}
+    </div>
+
+  }
+
+
+  <form
+    [formGroup]="formulario"
+    (ngSubmit)="registrar()"
+    class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+  >
+
+    <!-- INFORMACIÓN VEHÍCULO -->
+
+    <div
+      class="border-b border-slate-100 p-6 sm:p-8"
+    >
+
+      <h2
+        class="text-lg font-bold text-slate-900"
+      >
+        Información del vehículo
+      </h2>
+
+      <p
+        class="mt-1 text-sm text-slate-500"
+      >
+        Completa los datos principales.
+      </p>
+
+
+      <div
+        class="mt-6 grid gap-6 md:grid-cols-2"
+      >
+
+        <!-- PLACA -->
+
+        <div>
+
+          <label
+            for="placa"
+            class="mb-2 block text-sm font-semibold text-slate-700"
+          >
+            Placa
+          </label>
+
+          <input
+            id="placa"
+            type="text"
+            formControlName="placa"
+            (input)="convertirPlacaMayusculas()"
+            maxlength="20"
+            autocomplete="off"
+            placeholder="Ej. ABC123"
+            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-lg font-bold uppercase tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+          />
+
+          @if (
+            formulario.controls.placa.touched &&
+            formulario.controls.placa.invalid
+          ) {
+
+            <p
+              class="mt-2 text-sm text-red-600"
+            >
+              Ingresa una placa válida.
+            </p>
+
+          }
+
+        </div>
+
+
+        <!-- TIPO VEHÍCULO -->
+
+        <div>
+
+          <label
+            for="tipoVehiculo"
+            class="mb-2 block text-sm font-semibold text-slate-700"
+          >
+            Tipo de vehículo
+          </label>
+
+          <select
+            id="tipoVehiculo"
+            formControlName="tipoVehiculoId"
+            (change)="cambioTipoVehiculo()"
+            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+          >
+
+            <option value="">
+              Selecciona un tipo
+            </option>
+
+
+            @if (cargandoTipos()) {
+
+              <option disabled>
+                Cargando...
+              </option>
+
+            }
+
+
+            @for (
+              tipo of tiposVehiculo();
+              track tipo._id
+            ) {
+
+              <option
+                [value]="tipo._id"
+              >
+                {{ tipo.nombre }}
+              </option>
+
+            }
+
+          </select>
+
+
+          @if (
+            formulario.controls.tipoVehiculoId.touched &&
+            formulario.controls.tipoVehiculoId.invalid
+          ) {
+
+            <p
+              class="mt-2 text-sm text-red-600"
+            >
+              Selecciona el tipo de vehículo.
+            </p>
+
+          }
+
+
+          <!-- CAMPO OTRO -->
+
+          @if (mostrarTipoPersonalizado()) {
+
+            <div
+              class="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50/50 p-4"
+            >
+
+              <label
+                for="tipoVehiculoPersonalizado"
+                class="mb-2 block text-sm font-semibold text-slate-700"
+              >
+                ¿Qué tipo de vehículo es?
+              </label>
+
+              <input
+                id="tipoVehiculoPersonalizado"
+                type="text"
+                formControlName="tipoVehiculoPersonalizado"
+                maxlength="80"
+                autocomplete="off"
+                placeholder="Ej. Volqueta, tractor, grúa..."
+                class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+              />
+
+              <p
+                class="mt-2 text-xs text-slate-500"
+              >
+                Escribe el tipo de vehículo que está ingresando.
+              </p>
+
+            </div>
+
+          }
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- PERMANENCIA -->
+
+    <div
+      class="border-b border-slate-100 p-6 sm:p-8"
+    >
+
+      <h2
+        class="text-lg font-bold text-slate-900"
+      >
+        Permanencia
+      </h2>
+
+
+      <div class="mt-6">
+
+        <label
+          for="tiempoEstimado"
+          class="mb-2 block text-sm font-semibold text-slate-700"
+        >
+          Tiempo aproximado
+        </label>
+
+        <input
+          id="tiempoEstimado"
+          type="text"
+          formControlName="tiempoEstimado"
+          maxlength="100"
+          placeholder="Ej. 3 horas, todo el día, hasta mañana..."
+          class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+        />
+
+        <p
+          class="mt-2 text-xs text-slate-400"
+        >
+          Corresponde al tiempo aproximado indicado
+          por el conductor.
+        </p>
+
+      </div>
+
+    </div>
+
+
+    <!-- OBSERVACIÓN -->
+
+    <div
+      class="p-6 sm:p-8"
+    >
+
+      <label
+        for="observacion"
+        class="mb-2 block text-sm font-semibold text-slate-700"
+      >
+        Observación
+
+        <span
+          class="font-normal text-slate-400"
+        >
+          (opcional)
+        </span>
+      </label>
+
+      <textarea
+        id="observacion"
+        formControlName="observacion"
+        rows="4"
+        maxlength="500"
+        placeholder="Información adicional si es necesaria..."
+        class="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+      ></textarea>
+
+
+      <!-- BOTONES -->
+
+      <div
+        class="mt-8 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"
+      >
+
+        <button
+          type="button"
+          (click)="limpiarFormulario()"
+          class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+        >
+          Limpiar
+        </button>
+
+
+        <button
+          type="submit"
+          [disabled]="guardando()"
+          class="rounded-xl bg-slate-950 px-7 py-3.5 text-sm font-semibold text-white transition hover:bg-slate-800 focus:ring-4 focus:ring-slate-950/10 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+
+          @if (guardando()) {
+
+            Guardando...
+
+          } @else {
+
+            Registrar entrada
+
+          }
+
+        </button>
+
+      </div>
+
+    </div>
+
+  </form>
+
+</section>

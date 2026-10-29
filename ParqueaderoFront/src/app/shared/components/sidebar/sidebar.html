@@ -1,0 +1,94 @@
+<aside
+  class="fixed inset-y-0 left-0 z-40 hidden w-72 border-r border-slate-800 bg-slate-950 lg:flex lg:flex-col"
+>
+
+  <div
+    class="flex h-20 items-center border-b border-slate-800 px-6"
+  >
+
+    <div
+      class="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-500 font-bold text-slate-950"
+    >
+      P
+    </div>
+
+    <div class="ml-3">
+
+      <p class="font-bold text-white">
+        Parqueadero
+      </p>
+
+      <p class="text-xs text-slate-400">
+        Panel operativo
+      </p>
+
+    </div>
+
+  </div>
+
+  <nav class="flex-1 space-y-2 p-4">
+
+    <a
+      routerLink="/trabajador"
+      routerLinkActive="bg-emerald-500 text-slate-950"
+      [routerLinkActiveOptions]="{ exact: true }"
+      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+    >
+      Inicio
+    </a>
+
+    <a
+      routerLink="/trabajador/entrada"
+      routerLinkActive="bg-emerald-500 text-slate-950"
+      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+    >
+      Registrar entrada
+    </a>
+
+    <a
+      routerLink="/trabajador/salida"
+      routerLinkActive="bg-emerald-500 text-slate-950"
+      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+    >
+      Registrar salida
+    </a>
+
+    <a
+      routerLink="/trabajador/vehiculos"
+      routerLinkActive="bg-emerald-500 text-slate-950"
+      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+    >
+      Vehículos dentro
+    </a>
+
+    <a
+      routerLink="/trabajador/caja"
+      routerLinkActive="bg-emerald-500 text-slate-950"
+      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
+    >
+      Caja diaria
+    </a>
+
+  </nav>
+
+  <div
+    class="border-t border-slate-800 p-4"
+  >
+
+    <div
+      class="rounded-xl bg-slate-900 p-4"
+    >
+
+      <p class="text-sm font-semibold text-white">
+        Trabajador
+      </p>
+
+      <p class="mt-1 text-xs text-slate-400">
+        Sesión activa
+      </p>
+
+    </div>
+
+  </div>
+
+</aside>

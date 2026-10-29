@@ -1,0 +1,282 @@
+<section>
+
+  <!-- ENCABEZADO -->
+
+  <div
+    class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+  >
+
+    <div>
+
+      <p
+        class="text-sm font-semibold text-emerald-600"
+      >
+        Operación del día
+      </p>
+
+      <h1
+        class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl"
+      >
+        Panel principal
+      </h1>
+
+      <p
+        class="mt-2 text-sm text-slate-500"
+      >
+        Registra y controla los movimientos del parqueadero.
+      </p>
+
+    </div>
+
+
+    <button
+      type="button"
+      (click)="cargarResumen()"
+      [disabled]="cargando()"
+      class="w-fit rounded-xl border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
+    >
+      @if (cargando()) {
+        Actualizando...
+      } @else {
+        Actualizar
+      }
+    </button>
+
+  </div>
+
+
+  @if (mensajeError()) {
+
+    <div
+      class="mt-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700"
+    >
+      {{ mensajeError() }}
+    </div>
+
+  }
+
+
+  <!-- ESTADÍSTICAS -->
+
+  <div
+    class="mt-8 grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4"
+  >
+
+    <!-- DENTRO -->
+
+    <article
+      class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6"
+    >
+
+      <p
+        class="text-xs font-medium text-slate-500 sm:text-sm"
+      >
+        Vehículos dentro
+      </p>
+
+      <p
+        class="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl"
+      >
+        @if (cargando()) {
+          —
+        } @else {
+          {{ vehiculosDentro() }}
+        }
+      </p>
+
+    </article>
+
+
+    <!-- ENTRADAS -->
+
+    <article
+      class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6"
+    >
+
+      <p
+        class="text-xs font-medium text-slate-500 sm:text-sm"
+      >
+        Entradas hoy
+      </p>
+
+      <p
+        class="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl"
+      >
+        @if (cargando()) {
+          —
+        } @else {
+          {{ entradasHoy() }}
+        }
+      </p>
+
+    </article>
+
+
+    <!-- SALIDAS -->
+
+    <article
+      class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6"
+    >
+
+      <p
+        class="text-xs font-medium text-slate-500 sm:text-sm"
+      >
+        Salidas hoy
+      </p>
+
+      <p
+        class="mt-3 text-3xl font-bold text-slate-950 sm:text-4xl"
+      >
+        @if (cargando()) {
+          —
+        } @else {
+          {{ salidasHoy() }}
+        }
+      </p>
+
+    </article>
+
+
+    <!-- RECAUDO -->
+
+    <article
+      class="col-span-2 rounded-2xl bg-emerald-500 p-4 shadow-sm sm:rounded-3xl sm:p-6 xl:col-span-1"
+    >
+
+      <p
+        class="text-xs font-semibold text-emerald-950/70 sm:text-sm"
+      >
+        Recaudo hoy
+      </p>
+
+      <p
+        class="mt-3 break-words text-3xl font-bold text-slate-950 sm:text-4xl"
+      >
+        @if (cargando()) {
+          —
+        } @else {
+          {{ formatearDinero(recaudoHoy()) }}
+        }
+      </p>
+
+    </article>
+
+  </div>
+
+
+  <!-- ACCIONES PRINCIPALES -->
+
+  <div
+    class="mt-6 grid gap-4 md:grid-cols-2"
+  >
+
+    <a
+      routerLink="/trabajador/entrada"
+      class="group rounded-3xl bg-slate-950 p-6 transition duration-200 hover:-translate-y-1 hover:shadow-xl sm:p-8"
+    >
+
+      <p
+        class="text-sm font-semibold text-emerald-400"
+      >
+        Entrada
+      </p>
+
+      <h2
+        class="mt-2 text-xl font-bold text-white sm:text-2xl"
+      >
+        Registrar vehículo
+      </h2>
+
+      <p
+        class="mt-3 text-sm leading-6 text-slate-400"
+      >
+        Ingresa placa, tipo de vehículo y tiempo aproximado.
+      </p>
+
+      <p
+        class="mt-6 text-sm font-semibold text-white"
+      >
+        Registrar entrada →
+      </p>
+
+    </a>
+
+
+    <a
+      routerLink="/trabajador/salida"
+      class="group rounded-3xl bg-emerald-500 p-6 transition duration-200 hover:-translate-y-1 hover:shadow-xl sm:p-8"
+    >
+
+      <p
+        class="text-sm font-semibold text-emerald-950/70"
+      >
+        Salida
+      </p>
+
+      <h2
+        class="mt-2 text-xl font-bold text-slate-950 sm:text-2xl"
+      >
+        Buscar por placa
+      </h2>
+
+      <p
+        class="mt-3 text-sm leading-6 text-emerald-950/70"
+      >
+        Busca el vehículo y registra manualmente el valor cobrado.
+      </p>
+
+      <p
+        class="mt-6 text-sm font-bold text-slate-950"
+      >
+        Registrar salida →
+      </p>
+
+    </a>
+
+  </div>
+
+
+  <!-- ACCESOS SECUNDARIOS -->
+
+  <div
+    class="mt-4 grid gap-4 sm:grid-cols-2"
+  >
+
+    <a
+      routerLink="/trabajador/vehiculos"
+      class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm"
+    >
+      <p
+        class="font-bold text-slate-900"
+      >
+        Vehículos dentro
+      </p>
+
+      <p
+        class="mt-1 text-sm text-slate-500"
+      >
+        Consulta quién permanece actualmente en el parqueadero.
+      </p>
+    </a>
+
+
+    <a
+      routerLink="/trabajador/caja"
+      class="rounded-2xl border border-slate-200 bg-white p-5 transition hover:border-slate-300 hover:shadow-sm"
+    >
+      <p
+        class="font-bold text-slate-900"
+      >
+        Caja diaria
+      </p>
+
+      <p
+        class="mt-1 text-sm text-slate-500"
+      >
+        Consulta los cobros y el recaudo del día.
+      </p>
+    </a>
+
+  </div>
+
+</section>

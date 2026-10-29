@@ -1,0 +1,391 @@
+<section class="mx-auto max-w-5xl">
+
+  <div class="mb-8">
+
+    <p
+      class="text-sm font-semibold text-emerald-600"
+    >
+      Salida de vehículo
+    </p>
+
+    <h1
+      class="mt-2 text-2xl font-bold text-slate-950 sm:text-3xl"
+    >
+      Registrar salida
+    </h1>
+
+    <p
+      class="mt-2 max-w-2xl text-sm leading-6 text-slate-500"
+    >
+      Busca el vehículo por su placa y registra manualmente
+      el valor cobrado.
+    </p>
+
+  </div>
+
+
+  @if (mensajeExito()) {
+
+    <div
+      class="mb-6 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800"
+    >
+      {{ mensajeExito() }}
+    </div>
+
+  }
+
+
+  @if (mensajeError()) {
+
+    <div
+      class="mb-6 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+    >
+      {{ mensajeError() }}
+    </div>
+
+  }
+
+
+  <!-- BUSCADOR -->
+
+  <form
+    [formGroup]="formularioBusqueda"
+    (ngSubmit)="buscar()"
+    class="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"
+  >
+
+    <label
+      for="placaBusqueda"
+      class="mb-2 block text-sm font-semibold text-slate-700"
+    >
+      Buscar por placa
+    </label>
+
+    <div
+      class="flex flex-col gap-3 sm:flex-row"
+    >
+
+      <input
+        id="placaBusqueda"
+        type="text"
+        formControlName="placa"
+        (input)="convertirPlacaMayusculas()"
+        maxlength="20"
+        autocomplete="off"
+        placeholder="Ej. ABC456"
+        class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-5 py-4 text-lg font-bold uppercase tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+      />
+
+      <button
+        type="submit"
+        [disabled]="buscando()"
+        class="rounded-xl bg-slate-950 px-8 py-4 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
+      >
+
+        @if (buscando()) {
+          Buscando...
+        } @else {
+          Buscar vehículo
+        }
+
+      </button>
+
+    </div>
+
+    @if (
+      formularioBusqueda.controls.placa.touched &&
+      formularioBusqueda.controls.placa.invalid
+    ) {
+
+      <p
+        class="mt-2 text-sm text-red-600"
+      >
+        Ingresa una placa válida.
+      </p>
+
+    }
+
+  </form>
+
+
+  <!-- VEHÍCULO ENCONTRADO -->
+
+  @if (registro(); as vehiculo) {
+
+    <div
+      class="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+    >
+
+      <div
+        class="border-b border-slate-100 bg-slate-50 p-6 sm:p-8"
+      >
+
+        <div
+          class="flex flex-col justify-between gap-5 sm:flex-row sm:items-center"
+        >
+
+          <div>
+
+            <p
+              class="text-sm font-semibold text-emerald-600"
+            >
+              Vehículo encontrado
+            </p>
+
+            <h2
+              class="mt-1 text-3xl font-bold tracking-wider text-slate-950"
+            >
+              {{ vehiculo.placa }}
+            </h2>
+
+          </div>
+
+          <span
+            class="w-fit rounded-full bg-emerald-100 px-4 py-2 text-sm font-semibold text-emerald-700"
+          >
+            Dentro del parqueadero
+          </span>
+
+        </div>
+
+      </div>
+
+
+      <!-- INFORMACIÓN -->
+
+      <div
+        class="grid gap-px bg-slate-200 sm:grid-cols-2 lg:grid-cols-4"
+      >
+
+        <div class="bg-white p-5">
+
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-400"
+          >
+            Tipo
+          </p>
+
+          <p
+            class="mt-2 font-semibold text-slate-900"
+          >
+            {{ vehiculo.tipoVehiculoNombre }}
+          </p>
+
+        </div>
+
+
+        <div class="bg-white p-5">
+
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-400"
+          >
+            Entrada
+          </p>
+
+          <p
+            class="mt-2 font-semibold text-slate-900"
+          >
+            {{
+              vehiculo.fechaHoraEntrada
+                | date:'dd/MM/yyyy'
+            }}
+          </p>
+
+          <p
+            class="mt-1 text-sm text-slate-500"
+          >
+            {{
+              vehiculo.fechaHoraEntrada
+                | date:'h:mm a'
+            }}
+          </p>
+
+        </div>
+
+
+        <div class="bg-white p-5">
+
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-400"
+          >
+            Permanencia
+          </p>
+
+          <p
+            class="mt-2 font-semibold text-slate-900"
+          >
+            {{ obtenerTiempo() }}
+          </p>
+
+        </div>
+
+
+        <div class="bg-white p-5">
+
+          <p
+            class="text-xs font-semibold uppercase tracking-wide text-slate-400"
+          >
+            Tiempo indicado
+          </p>
+
+          <p
+            class="mt-2 font-semibold text-slate-900"
+          >
+            {{
+              vehiculo.tiempoEstimado ||
+              'No especificado'
+            }}
+          </p>
+
+        </div>
+
+      </div>
+
+
+      <!-- COBRO -->
+
+      <form
+        [formGroup]="formularioSalida"
+        (ngSubmit)="confirmarSalida()"
+        class="p-6 sm:p-8"
+      >
+
+        <div
+          class="mb-7"
+        >
+
+          <p
+            class="text-sm font-semibold text-slate-500"
+          >
+            Cobro de salida
+          </p>
+
+          <h3
+            class="mt-1 text-xl font-bold text-slate-950"
+          >
+            Ingresa el valor cobrado
+          </h3>
+
+          <p
+            class="mt-2 text-sm text-slate-500"
+          >
+            El sistema no calcula tarifas automáticamente.
+            Registra exactamente el valor cobrado al conductor.
+          </p>
+
+        </div>
+
+
+        <div
+          class="grid gap-6 md:grid-cols-2"
+        >
+
+          <div>
+
+            <label
+              for="valorCobrado"
+              class="mb-2 block text-sm font-semibold text-slate-700"
+            >
+              Valor cobrado
+            </label>
+
+            <div class="relative">
+
+              <span
+                class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-slate-500"
+              >
+                $
+              </span>
+
+              <input
+                id="valorCobrado"
+                type="number"
+                formControlName="valorCobrado"
+                min="0"
+                step="100"
+                inputmode="numeric"
+                class="w-full rounded-xl border border-slate-300 bg-white py-4 pl-9 pr-4 text-2xl font-bold text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+              />
+
+            </div>
+
+            @if (
+              formularioSalida.controls.valorCobrado.touched &&
+              formularioSalida.controls.valorCobrado.invalid
+            ) {
+
+              <p
+                class="mt-2 text-sm text-red-600"
+              >
+                Ingresa un valor válido.
+              </p>
+
+            }
+
+          </div>
+
+
+          <div>
+
+            <label
+              for="observacionSalida"
+              class="mb-2 block text-sm font-semibold text-slate-700"
+            >
+              Observación
+              <span
+                class="font-normal text-slate-400"
+              >
+                (opcional)
+              </span>
+            </label>
+
+            <textarea
+              id="observacionSalida"
+              formControlName="observacion"
+              rows="3"
+              maxlength="500"
+              placeholder="Observación de la salida..."
+              class="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+            ></textarea>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="mt-8 flex flex-col-reverse gap-3 border-t border-slate-100 pt-6 sm:flex-row sm:justify-end"
+        >
+
+          <button
+            type="button"
+            (click)="cancelar()"
+            class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+
+
+          <button
+            type="submit"
+            [disabled]="guardando()"
+            class="rounded-xl bg-emerald-500 px-8 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 focus:ring-4 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+
+            @if (guardando()) {
+              Registrando salida...
+            } @else {
+              Confirmar salida
+            }
+
+          </button>
+
+        </div>
+
+      </form>
+
+    </div>
+
+  }
+
+</section>

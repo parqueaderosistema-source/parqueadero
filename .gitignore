@@ -1,0 +1,24 @@
+# Dependencias
+node_modules/
+
+# Builds y caché
+dist/
+out-tsc/
+.angular/
+coverage/
+
+# Variables de entorno
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Sistema y editores
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
