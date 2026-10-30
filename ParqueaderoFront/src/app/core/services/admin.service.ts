@@ -3,7 +3,10 @@ import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Observable, catchError, from, map, switchMap, throwError } from 'rxjs';
 
 import {
+  ActualizarTipoVehiculoRequest,
   ArchivoDescargado,
+  TipoVehiculoGuardadoResponse,
+  TiposVehiculoAdminResponse,
   EliminarMesRequest,
   EliminarMesResponse,
   FormatoExportacion,
@@ -127,6 +130,29 @@ export class AdminService {
   ): Observable<PrepararEliminacionResponse> {
     return this.http.get<PrepararEliminacionResponse>(
       `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}/preparar-eliminacion`,
+    );
+  }
+
+  obtenerTiposVehiculo(): Observable<TiposVehiculoAdminResponse> {
+    return this.http.get<TiposVehiculoAdminResponse>(
+      `${this.apiUrl}/tipos-vehiculo`,
+    );
+  }
+
+  crearTipoVehiculo(nombre: string): Observable<TipoVehiculoGuardadoResponse> {
+    return this.http.post<TipoVehiculoGuardadoResponse>(
+      `${this.apiUrl}/tipos-vehiculo`,
+      { nombre },
+    );
+  }
+
+  actualizarTipoVehiculo(
+    id: string,
+    datos: ActualizarTipoVehiculoRequest,
+  ): Observable<TipoVehiculoGuardadoResponse> {
+    return this.http.patch<TipoVehiculoGuardadoResponse>(
+      `${this.apiUrl}/tipos-vehiculo/${encodeURIComponent(id)}`,
+      datos,
     );
   }
 

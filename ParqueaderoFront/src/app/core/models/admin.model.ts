@@ -1,4 +1,35 @@
-import { RegistroParqueadero, ResumenDiaResponse } from './parqueadero.model';
+import {
+  RegistroParqueadero,
+  ResumenDiaResponse,
+  TipoVehiculo,
+} from './parqueadero.model';
+
+/**
+ * GET /api/tipos-vehiculo (todos, activos e inactivos)
+ * permitePersonalizado no se puede cambiar desde la API.
+ */
+export interface TipoVehiculoAdmin extends TipoVehiculo {
+  permitePersonalizado: boolean;
+}
+
+export interface TiposVehiculoAdminResponse {
+  ok: boolean;
+  tipos: TipoVehiculoAdmin[];
+}
+
+/**
+ * POST /api/tipos-vehiculo y PATCH /api/tipos-vehiculo/:id
+ */
+export interface TipoVehiculoGuardadoResponse {
+  ok: boolean;
+  message: string;
+  tipo: TipoVehiculoAdmin;
+}
+
+export interface ActualizarTipoVehiculoRequest {
+  nombre?: string;
+  activo?: boolean;
+}
 
 /**
  * GET /api/registros/resumen/admin

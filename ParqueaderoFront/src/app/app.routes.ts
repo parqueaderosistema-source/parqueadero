@@ -38,6 +38,14 @@ export const routes: Routes = [
             (m) => m.Historial,
           ),
       },
+
+      {
+        path: 'tipos-vehiculo',
+        loadComponent: () =>
+          import('./features/admin/tipos-vehiculo/tipos-vehiculo').then(
+            (m) => m.TiposVehiculo,
+          ),
+      },
     ],
   },
 

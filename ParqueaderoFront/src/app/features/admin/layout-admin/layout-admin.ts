@@ -21,7 +21,10 @@ const MENU_ADMIN: GrupoMenu[] = [
 
   {
     titulo: 'Administración',
-    enlaces: [{ etiqueta: 'Historial', ruta: '/admin/historial' }],
+    enlaces: [
+      { etiqueta: 'Historial', ruta: '/admin/historial' },
+      { etiqueta: 'Tipos de vehículo', ruta: '/admin/tipos-vehiculo' },
+    ],
   },
 ];
 
