@@ -26,7 +26,7 @@ function esErrorDuplicado(error: unknown): boolean {
  * Agrega tipoMostrado: el tipo personalizado si existe,
  * o el nombre del tipo guardado al momento de la entrada.
  */
-function conTipoMostrado<
+export function conTipoMostrado<
   T extends {
     tipoVehiculoNombre: string;
     tipoVehiculoPersonalizado?: string | null;

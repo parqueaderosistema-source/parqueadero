@@ -7,11 +7,15 @@ import {
   generarCSVHistorial,
   generarExcelHistorial,
   obtenerConfirmacionEliminacion,
+  obtenerHistorial,
   obtenerHistorialDeMes,
   obtenerNombrePeriodo,
   obtenerResumenMensual,
   validarMesEliminable,
 } from "../services/historial.service.js";
+
+import { responderError } from "../utils/responderError.js";
+import { filtrosHistorialSchema } from "../validators/historial.validator.js";
 
 export async function listarMeses(
   _request: Request,
@@ -25,37 +29,30 @@ export async function listarMeses(
   });
 }
 
-export async function verHistorialMes(
-  request: Request<{
-    periodo: string;
-  }>,
+export async function listarHistorial(
+  request: Request,
   response: Response,
 ): Promise<void> {
+  const resultado = filtrosHistorialSchema.safeParse(request.query);
+
+  if (!resultado.success) {
+    response.status(400).json({
+      ok: false,
+      message: "Los filtros enviados no son válidos",
+      errores: resultado.error.flatten().fieldErrors,
+    });
+    return;
+  }
+
   try {
-    const pagina = Math.max(1, Number(request.query.pagina ?? 1));
-
-    const limiteSolicitado = Number(request.query.limite ?? 25);
-
-    const limite = Math.min(100, Math.max(1, limiteSolicitado));
-
-    const historial = await obtenerHistorialDeMes(
-      request.params.periodo,
-      pagina,
-      limite,
-    );
+    const historial = await obtenerHistorial(resultado.data);
 
     response.status(200).json({
       ok: true,
       ...historial,
     });
   } catch (error) {
-    response.status(400).json({
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible consultar el historial",
-    });
+    responderError(response, error, "No fue posible consultar el historial");
   }
 }
 export async function exportarHistorialMes(

@@ -30,6 +30,34 @@ export function obtenerRangoDiaActual(): RangoFechas {
 }
 
 /**
+ * Rango de días completos (AAAA-MM-DD) en America/Bogota, convertido a UTC.
+ * desde y hasta son inclusivos; cualquiera de los dos puede faltar.
+ */
+export function obtenerRangoDias(
+  desde?: string,
+  hasta?: string,
+): { inicioUtc?: Date; finUtc?: Date } {
+  const timezone = obtenerZonaHoraria();
+
+  const leer = (valor: string) => {
+    const fecha = DateTime.fromISO(valor, { zone: timezone });
+
+    if (!fecha.isValid) {
+      throw new Error(`La fecha ${valor} no es válida`);
+    }
+
+    return fecha;
+  };
+
+  return {
+    inicioUtc: desde
+      ? leer(desde).startOf("day").toUTC().toJSDate()
+      : undefined,
+    finUtc: hasta ? leer(hasta).endOf("day").toUTC().toJSDate() : undefined,
+  };
+}
+
+/**
  * Inicio y fin de un mes (AAAA-MM) en America/Bogota, convertidos a UTC.
  * Sin periodo, usa el mes en curso.
  */

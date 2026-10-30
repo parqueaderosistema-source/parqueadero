@@ -1,8 +1,114 @@
 import { DateTime } from "luxon";
 import ExcelJS from "exceljs";
 
+import { Types } from "mongoose";
+
 import { AuditoriaModel } from "../models/Auditoria.js";
 import { RegistroParqueaderoModel } from "../models/RegistroParqueadero.js";
+import { conTipoMostrado } from "./registro.service.js";
+import { obtenerRangoDias, obtenerRangoMes } from "../utils/fechas.js";
+import { HttpError } from "../utils/httpError.js";
+import type { FiltrosHistorial } from "../validators/historial.validator.js";
+
+/**
+ * Historial con filtros y paginación.
+ * Un registro pertenece al día/mes de su fecha de entrada.
+ */
+export async function obtenerHistorial(filtros: FiltrosHistorial) {
+  const filtro: Record<string, unknown> = {};
+
+  let rango: { inicioUtc?: Date; finUtc?: Date };
+
+  try {
+    rango = filtros.mes
+      ? obtenerRangoMes(filtros.mes)
+      : obtenerRangoDias(filtros.desde, filtros.hasta);
+  } catch (error) {
+    throw new HttpError(
+      400,
+      error instanceof Error ? error.message : "Rango de fechas no válido",
+    );
+  }
+
+  if (rango.inicioUtc || rango.finUtc) {
+    filtro.fechaHoraEntrada = {
+      ...(rango.inicioUtc ? { $gte: rango.inicioUtc } : {}),
+      ...(rango.finUtc ? { $lte: rango.finUtc } : {}),
+    };
+  }
+
+  // La placa ya viene normalizada (solo A-Z y 0-9): es seguro usarla en la regex.
+  if (filtros.placa) {
+    filtro.placa = { $regex: filtros.placa };
+  }
+
+  if (filtros.tipoVehiculoId) {
+    filtro.tipoVehiculo = new Types.ObjectId(filtros.tipoVehiculoId);
+  }
+
+  if (filtros.estado) {
+    filtro.estado = filtros.estado;
+  }
+
+  const { page, limit } = filtros;
+
+  const [items, conteo] = await Promise.all([
+    RegistroParqueaderoModel.find(filtro)
+      .sort({ fechaHoraEntrada: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("registradoEntradaPor", "nombre")
+      .populate("registradoSalidaPor", "nombre")
+      .populate("anuladoPor", "nombre")
+      .lean(),
+
+    RegistroParqueaderoModel.aggregate<{
+      registros: number;
+      retirados: number;
+      anulados: number;
+      recaudo: number;
+    }>([
+      { $match: filtro },
+      {
+        $group: {
+          _id: null,
+          registros: { $sum: 1 },
+          retirados: {
+            $sum: { $cond: [{ $eq: ["$estado", "retirado"] }, 1, 0] },
+          },
+          anulados: {
+            $sum: { $cond: [{ $eq: ["$estado", "anulado"] }, 1, 0] },
+          },
+          recaudo: {
+            $sum: {
+              $cond: [
+                { $eq: ["$estado", "retirado"] },
+                { $ifNull: ["$valorCobrado", 0] },
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]),
+  ]);
+
+  const resumen = {
+    registros: conteo[0]?.registros ?? 0,
+    retirados: conteo[0]?.retirados ?? 0,
+    anulados: conteo[0]?.anulados ?? 0,
+    recaudo: conteo[0]?.recaudo ?? 0,
+  };
+
+  return {
+    items: items.map(conTipoMostrado),
+    total: resumen.registros,
+    page,
+    limit,
+    totalPages: Math.ceil(resumen.registros / limit),
+    resumen,
+  };
+}
 
 /**
  * Zona horaria utilizada por el parqueadero.
