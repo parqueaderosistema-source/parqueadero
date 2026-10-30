@@ -14,6 +14,13 @@ const tipoVehiculoSchema = new Schema(
       type: Boolean,
       default: true,
     },
+
+    // Si es true, al registrar la entrada se debe escribir
+    // el tipo real del vehículo (ej. el tipo «Otro»).
+    permitePersonalizado: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,
