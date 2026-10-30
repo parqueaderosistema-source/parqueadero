@@ -80,6 +80,25 @@ const registroParqueaderoSchema = new Schema(
       ref: "Usuario",
       default: null,
     },
+
+    // Anulación (solo administrador). El registro no se borra.
+    anuladoPor: {
+      type: Types.ObjectId,
+      ref: "Usuario",
+      default: null,
+    },
+
+    fechaAnulacion: {
+      type: Date,
+      default: null,
+    },
+
+    motivoAnulacion: {
+      type: String,
+      trim: true,
+      maxlength: 200,
+      default: null,
+    },
   },
   {
     timestamps: true,
