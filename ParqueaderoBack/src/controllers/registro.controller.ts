@@ -5,6 +5,7 @@ import type { AuthRequest } from "../middlewares/auth.middleware.js";
 import {
   buscarVehiculoDentroPorPlaca,
   obtenerRecaudoDelDia,
+  obtenerResumenAdministrador,
   obtenerResumenDelDia,
   obtenerVehiculosDentro,
   registrarEntradaVehiculo,
@@ -16,32 +17,7 @@ import {
   registrarSalidaSchema,
 } from "../validators/registro.validator.js";
 
-import { HttpError } from "../utils/httpError.js";
-
-/**
- * Responde un error de negocio con su código,
- * o un 500 genérico si es un error inesperado.
- */
-function responderError(
-  response: Response,
-  error: unknown,
-  mensajePorDefecto: string,
-): void {
-  if (error instanceof HttpError) {
-    response.status(error.status).json({
-      ok: false,
-      message: error.message,
-    });
-    return;
-  }
-
-  console.error(error);
-
-  response.status(500).json({
-    ok: false,
-    message: mensajePorDefecto,
-  });
-}
+import { responderError } from "../utils/responderError.js";
 
 export async function registrarEntrada(
   request: AuthRequest,
@@ -187,13 +163,26 @@ export async function resumenHoy(
       ...resumen,
     });
   } catch (error) {
-    response.status(500).json({
-      ok: false,
+    responderError(response, error, "No fue posible obtener el resumen del día");
+  }
+}
 
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible obtener el resumen del día",
+export async function resumenAdministrador(
+  _request: AuthRequest,
+  response: Response,
+): Promise<void> {
+  try {
+    const resumen = await obtenerResumenAdministrador();
+
+    response.status(200).json({
+      ok: true,
+      ...resumen,
     });
+  } catch (error) {
+    responderError(
+      response,
+      error,
+      "No fue posible obtener el resumen del administrador",
+    );
   }
 }
