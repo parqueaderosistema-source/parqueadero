@@ -10,6 +10,16 @@ import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
 import { RegistroParqueadero } from '../../../core/models/parqueadero.model';
 
+import { obtenerMensajeError } from '../../../core/utils/http-error';
+
+import { normalizarPlaca } from '../../../core/validators/parqueadero.validators';
+
+import {
+  HORAS_LIMITE_PERMANENCIA,
+  formatearPermanencia,
+  superaLimitePermanencia,
+} from '../../../core/utils/tiempo';
+
 @Component({
   selector: 'app-vehiculos-dentro',
 
@@ -30,8 +40,17 @@ export class VehiculosDentro implements OnInit {
 
   readonly busqueda = signal('');
 
+  readonly horasLimite = HORAS_LIMITE_PERMANENCIA;
+
+  readonly totalPorRevisar = computed(
+    () =>
+      this.registros().filter((registro) =>
+        superaLimitePermanencia(registro.fechaHoraEntrada),
+      ).length,
+  );
+
   readonly registrosFiltrados = computed(() => {
-    const texto = this.busqueda().trim().toUpperCase();
+    const texto = normalizarPlaca(this.busqueda().trim());
 
     if (!texto) {
       return this.registros();
@@ -67,7 +86,7 @@ export class VehiculosDentro implements OnInit {
 
         error: (error) => {
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible cargar los vehículos.',
+            obtenerMensajeError(error, 'No fue posible cargar los vehículos.'),
           );
         },
       });
@@ -78,32 +97,10 @@ export class VehiculosDentro implements OnInit {
   }
 
   calcularPermanencia(fechaEntrada: string): string {
-    const entrada = new Date(fechaEntrada);
+    return formatearPermanencia(fechaEntrada);
+  }
 
-    const ahora = new Date();
-
-    const diferencia = Math.max(0, ahora.getTime() - entrada.getTime());
-
-    const minutosTotales = Math.floor(diferencia / 60000);
-
-    const dias = Math.floor(minutosTotales / 1440);
-
-    const horas = Math.floor((minutosTotales % 1440) / 60);
-
-    const minutos = minutosTotales % 60;
-
-    const partes: string[] = [];
-
-    if (dias > 0) {
-      partes.push(`${dias} ${dias === 1 ? 'día' : 'días'}`);
-    }
-
-    if (horas > 0) {
-      partes.push(`${horas} h`);
-    }
-
-    partes.push(`${minutos} min`);
-
-    return partes.join(' ');
+  requiereRevision(fechaEntrada: string): boolean {
+    return superaLimitePermanencia(fechaEntrada);
   }
 }

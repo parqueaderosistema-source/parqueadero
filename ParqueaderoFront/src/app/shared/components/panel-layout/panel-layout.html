@@ -1,0 +1,46 @@
+<div class="min-h-screen bg-slate-50">
+
+  <app-sidebar
+    [grupos]="grupos()"
+    [subtitulo]="subtitulo()"
+    [nombreUsuario]="nombreUsuario()"
+    [rolUsuario]="rolUsuario()"
+  />
+
+  <app-menu-movil
+    [abierto]="menuAbierto()"
+    [grupos]="grupos()"
+    [subtitulo]="subtitulo()"
+    [nombreUsuario]="nombreUsuario()"
+    [rolUsuario]="rolUsuario()"
+    [cerrandoSesion]="cerrandoSesion()"
+    (cerrar)="menuAbierto.set(false)"
+    (cerrarSesion)="cerrarSesion()"
+  />
+
+  <div class="lg:pl-72">
+
+    <app-topbar
+      [titulo]="titulo()"
+      [nombreUsuario]="nombreUsuario()"
+      [correoUsuario]="correoUsuario()"
+      [rolUsuario]="rolUsuario()"
+      [cerrandoSesion]="cerrandoSesion()"
+      (abrirMenu)="menuAbierto.set(true)"
+      (cerrarSesion)="cerrarSesion()"
+    />
+
+    <!-- min-w-0 evita que una tabla ancha estire la página -->
+    <main class="min-w-0 p-4 sm:p-6 lg:p-8">
+
+      <div class="mx-auto max-w-7xl">
+
+        <router-outlet />
+
+      </div>
+
+    </main>
+
+  </div>
+
+</div>

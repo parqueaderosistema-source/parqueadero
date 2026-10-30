@@ -1,21 +1,5 @@
-<div class="min-h-screen bg-slate-50">
-
-  <app-sidebar />
-
-  <div class="lg:pl-72">
-
-    <app-topbar />
-
-    <main class="p-4 sm:p-6 lg:p-8">
-
-      <div class="mx-auto max-w-7xl">
-
-        <router-outlet />
-
-      </div>
-
-    </main>
-
-  </div>
-
-</div>
+<app-panel-layout
+  [grupos]="menu"
+  titulo="Panel de trabajo"
+  subtitulo="Panel operativo"
+/>

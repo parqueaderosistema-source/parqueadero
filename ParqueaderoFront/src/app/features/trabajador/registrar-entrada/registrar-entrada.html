@@ -92,21 +92,38 @@
             type="text"
             formControlName="placa"
             (input)="convertirPlacaMayusculas()"
-            maxlength="20"
+            maxlength="30"
             autocomplete="off"
             placeholder="Ej. ABC123"
-            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-lg font-bold uppercase tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+            class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-lg font-bold tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
           />
 
           @if (
             formulario.controls.placa.touched &&
-            formulario.controls.placa.invalid
+            formulario.controls.placa.errors;
+            as errores
           ) {
 
             <p
               class="mt-2 text-sm text-red-600"
             >
-              Ingresa una placa válida.
+              @if (errores['required']) {
+                La placa es obligatoria.
+              } @else if (errores['placaCaracteres']) {
+                Solo se permiten letras, números, espacios y guiones.
+              } @else if (errores['placaLongitud']) {
+                La placa debe tener entre 3 y 20 letras o números.
+              } @else {
+                Ingresa una placa válida.
+              }
+            </p>
+
+          } @else if (erroresServidor()['placa']) {
+
+            <p
+              class="mt-2 text-sm text-red-600"
+            >
+              {{ erroresServidor()['placa'] }}
             </p>
 
           }
@@ -128,7 +145,7 @@
           <select
             id="tipoVehiculo"
             formControlName="tipoVehiculoId"
-            (change)="cambioTipoVehiculo()"
+            (change)="cambioTipoVehiculo(); limpiarErrorServidor('tipoVehiculoId')"
             class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
           >
 
@@ -171,6 +188,14 @@
               class="mt-2 text-sm text-red-600"
             >
               Selecciona el tipo de vehículo.
+            </p>
+
+          } @else if (erroresServidor()['tipoVehiculoId']) {
+
+            <p
+              class="mt-2 text-sm text-red-600"
+            >
+              {{ erroresServidor()['tipoVehiculoId'] }}
             </p>
 
           }
@@ -244,10 +269,21 @@
           id="tiempoEstimado"
           type="text"
           formControlName="tiempoEstimado"
+          (input)="limpiarErrorServidor('tiempoEstimado')"
           maxlength="100"
           placeholder="Ej. 3 horas, todo el día, hasta mañana..."
           class="w-full rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
         />
+
+        @if (erroresServidor()['tiempoEstimado']) {
+
+          <p
+            class="mt-2 text-sm text-red-600"
+          >
+            {{ erroresServidor()['tiempoEstimado'] }}
+          </p>
+
+        }
 
         <p
           class="mt-2 text-xs text-slate-400"
@@ -283,11 +319,22 @@
       <textarea
         id="observacion"
         formControlName="observacion"
+        (input)="limpiarErrorServidor('observacion')"
         rows="4"
         maxlength="500"
         placeholder="Información adicional si es necesaria..."
         class="w-full resize-none rounded-xl border border-slate-300 bg-white px-4 py-3.5 text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
       ></textarea>
+
+      @if (erroresServidor()['observacion']) {
+
+        <p
+          class="mt-2 text-sm text-red-600"
+        >
+          {{ erroresServidor()['observacion'] }}
+        </p>
+
+      }
 
 
       <!-- BOTONES -->
@@ -299,7 +346,8 @@
         <button
           type="button"
           (click)="limpiarFormulario()"
-          class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+          [disabled]="guardando()"
+          class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
           Limpiar
         </button>

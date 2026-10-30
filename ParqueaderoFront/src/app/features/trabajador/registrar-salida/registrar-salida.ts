@@ -1,4 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
+
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import { CommonModule } from '@angular/common';
 
@@ -8,7 +10,27 @@ import { finalize } from 'rxjs';
 
 import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
-import { RegistroConTiempo } from '../../../core/models/parqueadero.model';
+import {
+  RegistroConTiempo,
+  RegistroParqueadero,
+} from '../../../core/models/parqueadero.model';
+
+import {
+  formatearPermanencia,
+  superaLimitePermanencia,
+} from '../../../core/utils/tiempo';
+
+import {
+  obtenerErroresDeCampo,
+  obtenerEstadoHttp,
+  obtenerMensajeError,
+} from '../../../core/utils/http-error';
+
+import {
+  enteroValidator,
+  normalizarPlaca,
+  placaValidator,
+} from '../../../core/validators/parqueadero.validators';
 
 @Component({
   selector: 'app-registrar-salida',
@@ -21,8 +43,17 @@ import { RegistroConTiempo } from '../../../core/models/parqueadero.model';
 
   styleUrl: './registrar-salida.css',
 })
-export class RegistrarSalida {
+export class RegistrarSalida implements OnInit {
   readonly buscando = signal(false);
+
+  /**
+   * Lista de vehículos dentro para seleccionarlos con un clic.
+   */
+  readonly vehiculosDentro = signal<RegistroParqueadero[]>([]);
+
+  readonly cargandoLista = signal(true);
+
+  readonly errorLista = signal('');
 
   readonly guardando = signal(false);
 
@@ -32,9 +63,31 @@ export class RegistrarSalida {
 
   readonly mensajeExito = signal('');
 
+  /**
+   * Error del campo valorCobrado devuelto por el servidor (400).
+   */
+  readonly errorValorServidor = signal('');
+
   readonly formularioBusqueda;
 
   readonly formularioSalida;
+
+  private readonly placaEscrita;
+
+  /**
+   * La lista se filtra con lo que se escribe en el buscador.
+   */
+  readonly vehiculosFiltrados = computed(() => {
+    const texto = normalizarPlaca(this.placaEscrita() ?? '');
+
+    if (!texto) {
+      return this.vehiculosDentro();
+    }
+
+    return this.vehiculosDentro().filter((vehiculo) =>
+      vehiculo.placa.includes(texto),
+    );
+  });
 
   constructor(
     private readonly fb: FormBuilder,
@@ -42,49 +95,108 @@ export class RegistrarSalida {
     private readonly parqueaderoService: ParqueaderoService,
   ) {
     this.formularioBusqueda = this.fb.nonNullable.group({
-      placa: [
-        '',
-        [
-          Validators.required,
-          Validators.minLength(3),
-          Validators.maxLength(20),
-          Validators.pattern(/^[a-zA-Z0-9-]+$/),
-        ],
-      ],
+      placa: ['', [Validators.required, placaValidator()]],
     });
 
     this.formularioSalida = this.fb.nonNullable.group({
-      valorCobrado: [
-        0,
-        [Validators.required, Validators.min(0), Validators.max(100000000)],
-      ],
+      valorCobrado: this.fb.control<number | null>(null, [
+        Validators.required,
+        Validators.min(1),
+        Validators.max(100000000),
+        enteroValidator(),
+      ]),
 
       observacion: ['', Validators.maxLength(500)],
     });
+
+    this.placaEscrita = toSignal(
+      this.formularioBusqueda.controls.placa.valueChanges,
+      { initialValue: '' },
+    );
+  }
+
+  ngOnInit(): void {
+    this.cargarVehiculosDentro();
+  }
+
+  cargarVehiculosDentro(): void {
+    this.cargandoLista.set(true);
+
+    this.errorLista.set('');
+
+    this.parqueaderoService
+      .obtenerVehiculosDentro()
+      .pipe(
+        finalize(() => {
+          this.cargandoLista.set(false);
+        }),
+      )
+      .subscribe({
+        next: (respuesta) => {
+          this.vehiculosDentro.set(respuesta.registros ?? []);
+        },
+
+        error: (error) => {
+          this.errorLista.set(
+            obtenerMensajeError(
+              error,
+              'No fue posible cargar los vehículos dentro.',
+            ),
+          );
+        },
+      });
+  }
+
+  seleccionarVehiculo(placa: string): void {
+    if (this.ocupado()) {
+      return;
+    }
+
+    this.formularioBusqueda.controls.placa.setValue(placa);
+
+    this.buscar();
+  }
+
+  permanencia(fechaEntrada: string): string {
+    return formatearPermanencia(fechaEntrada);
+  }
+
+  requiereRevision(fechaEntrada: string): boolean {
+    return superaLimitePermanencia(fechaEntrada);
+  }
+
+  /**
+   * Indica si hay una petición en curso
+   * (para deshabilitar todos los botones).
+   */
+  ocupado(): boolean {
+    return this.buscando() || this.guardando();
   }
 
   convertirPlacaMayusculas(): void {
     const control = this.formularioBusqueda.controls.placa;
 
-    control.setValue(control.value.toUpperCase().replace(/\s+/g, ''), {
+    control.setValue(control.value.toUpperCase(), {
       emitEvent: false,
     });
   }
 
   buscar(): void {
+    if (this.ocupado()) {
+      return;
+    }
+
     this.mensajeError.set('');
     this.mensajeExito.set('');
     this.registro.set(null);
 
-    if (this.formularioBusqueda.invalid || this.buscando()) {
+    if (this.formularioBusqueda.invalid) {
       this.formularioBusqueda.markAllAsTouched();
 
       return;
     }
 
-    const placa = this.formularioBusqueda.controls.placa.value
-      .trim()
-      .toUpperCase();
+    const placa = normalizarPlaca(this.formularioBusqueda.controls.placa.value);
 
     this.buscando.set(true);
 
@@ -99,15 +211,15 @@ export class RegistrarSalida {
         next: (respuesta) => {
           this.registro.set(respuesta.registro);
 
-          this.formularioSalida.reset({
-            valorCobrado: 0,
-            observacion: '',
-          });
+          this.reiniciarCobro();
         },
 
         error: (error) => {
           this.mensajeError.set(
-            error?.error?.message ?? 'No se encontró el vehículo.',
+            obtenerMensajeError(error, 'No fue posible buscar el vehículo.', {
+              404: `No hay ningún vehículo dentro del parqueadero con la placa ${placa}.`,
+              500: 'Ocurrió un error interno al buscar el vehículo. Intenta de nuevo.',
+            }),
           );
         },
       });
@@ -116,7 +228,13 @@ export class RegistrarSalida {
   confirmarSalida(): void {
     const vehiculo = this.registro();
 
-    if (!vehiculo || this.formularioSalida.invalid || this.guardando()) {
+    if (!vehiculo || this.ocupado()) {
+      return;
+    }
+
+    this.errorValorServidor.set('');
+
+    if (this.formularioSalida.invalid) {
       this.formularioSalida.markAllAsTouched();
 
       return;
@@ -150,29 +268,80 @@ export class RegistrarSalida {
             placa: '',
           });
 
-          this.formularioSalida.reset({
-            valorCobrado: 0,
-            observacion: '',
-          });
+          this.reiniciarCobro();
+
+          this.cargarVehiculosDentro();
         },
 
         error: (error) => {
+          const errorValor = obtenerErroresDeCampo(error)['valorCobrado'];
+
+          if (errorValor) {
+            this.errorValorServidor.set(errorValor);
+
+            return;
+          }
+
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible registrar la salida.',
+            obtenerMensajeError(error, 'No fue posible registrar la salida.', {
+              404: `No existe ningún registro para la placa ${vehiculo.placa}.`,
+              409: `El vehículo con placa ${vehiculo.placa} ya fue retirado o anulado.`,
+              500: 'Ocurrió un error interno al registrar la salida. Intenta de nuevo.',
+            }),
           );
+
+          /**
+           * 404 y 409: el vehículo ya no está dentro,
+           * no tiene sentido mantener el formulario de cobro.
+           */
+          const estado = obtenerEstadoHttp(error);
+
+          if (estado === 404 || estado === 409) {
+            this.registro.set(null);
+
+            this.cargarVehiculosDentro();
+          }
         },
       });
   }
 
   cancelar(): void {
+    if (this.guardando()) {
+      return;
+    }
+
     this.registro.set(null);
 
+    this.reiniciarCobro();
+
+    this.mensajeError.set('');
+  }
+
+  private reiniciarCobro(): void {
     this.formularioSalida.reset({
-      valorCobrado: 0,
+      valorCobrado: null,
       observacion: '',
     });
 
-    this.mensajeError.set('');
+    this.errorValorServidor.set('');
+  }
+
+  /**
+   * Valor cobrado formateado para la confirmación,
+   * o vacío si todavía no es válido.
+   */
+  valorCobradoFormateado(): string {
+    const control = this.formularioSalida.controls.valorCobrado;
+
+    if (control.invalid || control.value === null) {
+      return '';
+    }
+
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: 'COP',
+      maximumFractionDigits: 0,
+    }).format(control.value);
   }
 
   obtenerTiempo(): string {

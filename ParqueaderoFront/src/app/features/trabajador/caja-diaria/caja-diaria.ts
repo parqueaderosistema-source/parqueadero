@@ -8,6 +8,8 @@ import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
 import { RegistroParqueadero } from '../../../core/models/parqueadero.model';
 
+import { obtenerMensajeError } from '../../../core/utils/http-error';
+
 @Component({
   selector: 'app-caja-diaria',
 
@@ -53,19 +55,11 @@ export class CajaDiaria implements OnInit {
           this.fecha.set(respuesta.fecha ?? '');
 
           this.registros.set(registrosRecibidos);
-
-          console.log('Registros caja:', registrosRecibidos);
-
-          console.log('Cantidad:', registrosRecibidos.length);
-
-          console.log('Total calculado:', this.calcularTotalRecaudado());
         },
 
         error: (error) => {
-          console.error('Error cargando caja:', error);
-
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible cargar la caja diaria.',
+            obtenerMensajeError(error, 'No fue posible cargar la caja diaria.'),
           );
         },
       });
