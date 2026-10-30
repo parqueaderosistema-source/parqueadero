@@ -4,29 +4,50 @@ import type { AuthRequest } from "../middlewares/auth.middleware.js";
 
 import {
   eliminarHistorialMes,
-  generarCSVHistorial,
   generarExcelHistorial,
-  obtenerConfirmacionEliminacion,
   obtenerHistorial,
-  obtenerHistorialDeMes,
-  obtenerNombrePeriodo,
   obtenerResumenMensual,
-  validarMesEliminable,
+  obtenerVistaPreviaEliminacion,
 } from "../services/historial.service.js";
 
 import { responderError } from "../utils/responderError.js";
-import { filtrosHistorialSchema } from "../validators/historial.validator.js";
+import {
+  eliminarMesSchema,
+  filtrosHistorialSchema,
+  periodoSchema,
+} from "../validators/historial.validator.js";
+
+/**
+ * Valida el parámetro :periodo. Responde 400 y devuelve null si no es válido.
+ */
+function leerPeriodo(request: Request, response: Response): string | null {
+  const resultado = periodoSchema.safeParse(request.params.periodo);
+
+  if (!resultado.success) {
+    response.status(400).json({
+      ok: false,
+      message: resultado.error.issues[0]?.message ?? "El periodo no es válido",
+    });
+    return null;
+  }
+
+  return resultado.data;
+}
 
 export async function listarMeses(
   _request: Request,
   response: Response,
 ): Promise<void> {
-  const meses = await obtenerResumenMensual();
+  try {
+    const meses = await obtenerResumenMensual();
 
-  response.status(200).json({
-    ok: true,
-    meses,
-  });
+    response.status(200).json({
+      ok: true,
+      meses,
+    });
+  } catch (error) {
+    responderError(response, error, "No fue posible consultar los meses");
+  }
 }
 
 export async function listarHistorial(
@@ -55,163 +76,99 @@ export async function listarHistorial(
     responderError(response, error, "No fue posible consultar el historial");
   }
 }
+
 export async function exportarHistorialMes(
-  request: Request<{
-    periodo: string;
-  }>,
+  request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  try {
-    const periodo = request.params.periodo;
+  const periodo = leerPeriodo(request, response);
 
-    const formato = String(request.query.formato ?? "xlsx").toLowerCase();
-
-    if (formato !== "xlsx" && formato !== "csv") {
-      response.status(400).json({
-        ok: false,
-        message: "El formato debe ser xlsx o csv",
-      });
-
-      return;
-    }
-
-    if (formato === "xlsx") {
-      const archivo = await generarExcelHistorial(periodo);
-
-      response.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      );
-
-      response.setHeader(
-        "Content-Disposition",
-        `attachment; filename="historial-${periodo}.xlsx"`,
-      );
-
-      response.send(archivo);
-
-      return;
-    }
-
-    const archivo = await generarCSVHistorial(periodo);
-
-    response.setHeader("Content-Type", "text/csv; charset=utf-8");
-
-    response.setHeader(
-      "Content-Disposition",
-      `attachment; filename="historial-${periodo}.csv"`,
-    );
-
-    response.send(archivo);
-  } catch (error) {
-    response.status(400).json({
-      ok: false,
-
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible generar el archivo",
-    });
-  }
-}
-
-export async function prepararEliminacionMes(
-  request: Request<{
-    periodo: string;
-  }>,
-  response: Response,
-): Promise<void> {
-  try {
-    const periodo = request.params.periodo;
-
-    validarMesEliminable(periodo);
-
-    const historial = await obtenerHistorialDeMes(periodo, 1, 1);
-
-    response.status(200).json({
-      ok: true,
-
-      periodo,
-
-      nombrePeriodo: obtenerNombrePeriodo(periodo),
-
-      cantidadRegistros: historial.totalRegistros,
-
-      totalRecaudado: historial.totalRecaudado,
-
-      confirmacionRequerida: obtenerConfirmacionEliminacion(periodo),
-    });
-  } catch (error) {
-    response.status(400).json({
-      ok: false,
-
-      message:
-        error instanceof Error
-          ? error.message
-          : "No es posible eliminar este periodo",
-    });
-  }
-}
-
-export async function eliminarMes(
-  request: AuthRequest & {
-    params: {
-      periodo: string;
-    };
-  },
-  response: Response,
-): Promise<void> {
-  if (!request.usuario) {
-    response.status(401).json({
-      ok: false,
-      message: "No hay una sesión activa",
-    });
-
+  if (!periodo || !request.usuario) {
     return;
   }
 
   try {
-    const periodo = request.params.periodo;
-
-    const confirmacion = String(request.body.confirmacion ?? "").trim();
-
-    const confirmacionCorrecta = obtenerConfirmacionEliminacion(periodo);
-
-    if (confirmacion !== confirmacionCorrecta) {
-      response.status(400).json({
-        ok: false,
-
-        message: "La confirmación escrita no es correcta",
-
-        confirmacionRequerida: confirmacionCorrecta,
-      });
-
-      return;
-    }
-
-    const respaldoDescargado = request.body.respaldoDescargado === true;
-
-    const resultado = await eliminarHistorialMes(
+    const { archivo, nombreArchivo } = await generarExcelHistorial(
       periodo,
       request.usuario.id,
-      respaldoDescargado,
     );
+
+    response.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    );
+
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${nombreArchivo}"`,
+    );
+
+    response.send(archivo);
+  } catch (error) {
+    responderError(response, error, "No fue posible generar el archivo");
+  }
+}
+
+export async function prepararEliminacionMes(
+  request: Request,
+  response: Response,
+): Promise<void> {
+  const periodo = leerPeriodo(request, response);
+
+  if (!periodo) {
+    return;
+  }
+
+  try {
+    const vistaPrevia = await obtenerVistaPreviaEliminacion(periodo);
 
     response.status(200).json({
       ok: true,
-
-      message: "Historial eliminado definitivamente",
-
-      resultado,
+      ...vistaPrevia,
     });
   } catch (error) {
+    responderError(
+      response,
+      error,
+      "No fue posible preparar la eliminación del periodo",
+    );
+  }
+}
+
+export async function eliminarMes(
+  request: AuthRequest,
+  response: Response,
+): Promise<void> {
+  const periodo = leerPeriodo(request, response);
+
+  if (!periodo || !request.usuario) {
+    return;
+  }
+
+  const resultado = eliminarMesSchema.safeParse(request.body ?? {});
+
+  if (!resultado.success) {
     response.status(400).json({
       ok: false,
-
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible eliminar el historial",
+      message: "Los datos enviados no son válidos",
+      errores: resultado.error.flatten().fieldErrors,
     });
+    return;
+  }
+
+  try {
+    const eliminado = await eliminarHistorialMes({
+      periodo,
+      ...resultado.data,
+      usuarioId: request.usuario.id,
+    });
+
+    response.status(200).json({
+      ok: true,
+      message: "Historial eliminado definitivamente",
+      resultado: eliminado,
+    });
+  } catch (error) {
+    responderError(response, error, "No fue posible eliminar el historial");
   }
 }

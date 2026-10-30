@@ -73,3 +73,23 @@ export const filtrosHistorialSchema = z
   );
 
 export type FiltrosHistorial = z.infer<typeof filtrosHistorialSchema>;
+
+export const periodoSchema = z
+  .string()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "El periodo debe tener el formato AAAA-MM");
+
+export const eliminarMesSchema = z.object({
+  confirmacion: z
+    .string({ message: "Debe escribir la confirmación" })
+    .trim()
+    .min(1, "Debe escribir la confirmación"),
+
+  modo: z.enum(["descargar-y-eliminar", "sin-descargar"], {
+    message: "El modo debe ser descargar-y-eliminar o sin-descargar",
+  }),
+
+  descargado: z
+    .boolean({ message: "descargado debe ser true o false" })
+    .optional()
+    .default(false),
+});
