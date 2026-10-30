@@ -7,9 +7,14 @@ import { verificarAutenticacion } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
+/**
+ * Solo cuentan los intentos fallidos: un usuario que entra bien
+ * no gasta intentos, pero la fuerza bruta se sigue bloqueando.
+ */
 const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 5,
+  skipSuccessfulRequests: true,
   standardHeaders: true,
   legacyHeaders: false,
   message: {

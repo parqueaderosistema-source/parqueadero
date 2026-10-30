@@ -1,63 +1,47 @@
 import type { Response } from "express";
 
-import type { AuthRequest } from "../middlewares/auth.middleware.js";
+import {
+  usuarioDeSesion,
+  type AuthRequest,
+} from "../middlewares/auth.middleware.js";
 
 import {
   buscarVehiculoDentroPorPlaca,
-  obtenerRecaudoDelDia,
-  obtenerResumenAdministrador,
-  obtenerResumenDelDia,
   obtenerVehiculosDentro,
   registrarEntradaVehiculo,
   registrarSalidaVehiculo,
 } from "../services/registro.service.js";
 
 import {
+  obtenerRecaudoDelDia,
+  obtenerResumenAdministrador,
+  obtenerResumenDelDia,
+} from "../services/resumen.service.js";
+
+import { validar } from "../utils/validar.js";
+
+import {
+  placaParamsSchema,
   registrarEntradaSchema,
   registrarSalidaSchema,
 } from "../validators/registro.validator.js";
-
-import { responderError } from "../utils/responderError.js";
 
 export async function registrarEntrada(
   request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  const resultado = registrarEntradaSchema.safeParse(request.body);
+  const datos = validar(registrarEntradaSchema, request.body);
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Los datos enviados no son válidos",
-      errores: resultado.error.flatten().fieldErrors,
-    });
+  const registro = await registrarEntradaVehiculo({
+    ...datos,
+    usuarioId: usuarioDeSesion(request).id,
+  });
 
-    return;
-  }
-
-  if (!request.usuario) {
-    response.status(401).json({
-      ok: false,
-      message: "No hay una sesión activa",
-    });
-
-    return;
-  }
-
-  try {
-    const registro = await registrarEntradaVehiculo({
-      ...resultado.data,
-      usuarioId: request.usuario.id,
-    });
-
-    response.status(201).json({
-      ok: true,
-      message: "Entrada registrada correctamente",
-      registro,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible registrar la entrada");
-  }
+  response.status(201).json({
+    ok: true,
+    message: "Entrada registrada correctamente",
+    registro,
+  });
 }
 
 export async function listarVehiculosDentro(
@@ -72,71 +56,41 @@ export async function listarVehiculosDentro(
     registros,
   });
 }
+
 export async function buscarPorPlaca(
-  request: AuthRequest & {
-    params: {
-      placa: string;
-    };
-  },
+  request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  try {
-    const registro = await buscarVehiculoDentroPorPlaca(request.params.placa);
+  const { placa } = validar(placaParamsSchema, request.params);
 
-    response.status(200).json({
-      ok: true,
-      registro,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible buscar el vehículo");
-  }
+  const registro = await buscarVehiculoDentroPorPlaca(placa);
+
+  response.status(200).json({
+    ok: true,
+    registro,
+  });
 }
 
 export async function registrarSalida(
-  request: AuthRequest & {
-    params: {
-      placa: string;
-    };
-  },
+  request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  if (!request.usuario) {
-    response.status(401).json({
-      ok: false,
-      message: "No hay una sesión activa",
-    });
+  const { placa } = validar(placaParamsSchema, request.params);
 
-    return;
-  }
+  const datos = validar(registrarSalidaSchema, request.body);
 
-  const resultado = registrarSalidaSchema.safeParse(request.body);
+  const registro = await registrarSalidaVehiculo({
+    placa,
+    valorCobrado: datos.valorCobrado,
+    observacion: datos.observacion,
+    usuarioId: usuarioDeSesion(request).id,
+  });
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Los datos enviados no son válidos",
-      errores: resultado.error.flatten().fieldErrors,
-    });
-
-    return;
-  }
-
-  try {
-    const registro = await registrarSalidaVehiculo({
-      placa: request.params.placa,
-      valorCobrado: resultado.data.valorCobrado,
-      observacion: resultado.data.observacion,
-      usuarioId: request.usuario.id,
-    });
-
-    response.status(200).json({
-      ok: true,
-      message: "Salida registrada correctamente",
-      registro,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible registrar la salida");
-  }
+  response.status(200).json({
+    ok: true,
+    message: "Salida registrada correctamente",
+    registro,
+  });
 }
 
 export async function recaudoHoy(
@@ -155,34 +109,22 @@ export async function resumenHoy(
   _request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  try {
-    const resumen = await obtenerResumenDelDia();
+  const resumen = await obtenerResumenDelDia();
 
-    response.status(200).json({
-      ok: true,
-      ...resumen,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible obtener el resumen del día");
-  }
+  response.status(200).json({
+    ok: true,
+    ...resumen,
+  });
 }
 
 export async function resumenAdministrador(
   _request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  try {
-    const resumen = await obtenerResumenAdministrador();
+  const resumen = await obtenerResumenAdministrador();
 
-    response.status(200).json({
-      ok: true,
-      ...resumen,
-    });
-  } catch (error) {
-    responderError(
-      response,
-      error,
-      "No fue posible obtener el resumen del administrador",
-    );
-  }
+  response.status(200).json({
+    ok: true,
+    ...resumen,
+  });
 }

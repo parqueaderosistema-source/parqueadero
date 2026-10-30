@@ -1,15 +1,23 @@
 import type { Request, Response } from "express";
 
 import {
+  usuarioDeSesion,
+  type AuthRequest,
+} from "../middlewares/auth.middleware.js";
+
+import {
   actualizarTipoVehiculo,
   crearTipoVehiculo,
   obtenerTiposVehiculo,
   obtenerTiposVehiculoActivos,
 } from "../services/tipoVehiculo.service.js";
 
+import { validar } from "../utils/validar.js";
+
 import {
   actualizarTipoVehiculoSchema,
   crearTipoVehiculoSchema,
+  tipoVehiculoParamsSchema,
 } from "../validators/tipoVehiculo.validator.js";
 
 export async function listarTipos(
@@ -37,71 +45,37 @@ export async function listarTiposActivos(
 }
 
 export async function crearTipo(
-  request: Request,
+  request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  const resultado = crearTipoVehiculoSchema.safeParse(request.body);
+  const { nombre } = validar(crearTipoVehiculoSchema, request.body);
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Datos no válidos",
-    });
-    return;
-  }
+  const tipo = await crearTipoVehiculo(nombre, usuarioDeSesion(request).id);
 
-  try {
-    const tipo = await crearTipoVehiculo(resultado.data.nombre);
-
-    response.status(201).json({
-      ok: true,
-      message: "Tipo de vehículo creado correctamente",
-      tipo,
-    });
-  } catch (error) {
-    response.status(400).json({
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible crear el tipo de vehículo",
-    });
-  }
+  response.status(201).json({
+    ok: true,
+    message: "Tipo de vehículo creado correctamente",
+    tipo,
+  });
 }
 
 export async function actualizarTipo(
-  request: Request<{ id: string }>,
+  request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  const resultado = actualizarTipoVehiculoSchema.safeParse(request.body);
+  const { id } = validar(tipoVehiculoParamsSchema, request.params);
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Datos no válidos",
-    });
+  const datos = validar(actualizarTipoVehiculoSchema, request.body);
 
-    return;
-  }
+  const tipo = await actualizarTipoVehiculo(
+    id,
+    datos,
+    usuarioDeSesion(request).id,
+  );
 
-  try {
-    const tipo = await actualizarTipoVehiculo(
-      request.params.id,
-      resultado.data,
-    );
-
-    response.status(200).json({
-      ok: true,
-      message: "Tipo de vehículo actualizado",
-      tipo,
-    });
-  } catch (error) {
-    response.status(404).json({
-      ok: false,
-      message:
-        error instanceof Error
-          ? error.message
-          : "No fue posible actualizar el tipo de vehículo",
-    });
-  }
+  response.status(200).json({
+    ok: true,
+    message: "Tipo de vehículo actualizado",
+    tipo,
+  });
 }

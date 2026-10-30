@@ -1,31 +1,15 @@
 import type { NextFunction, Response } from "express";
 
-import type { AuthRequest } from "./auth.middleware.js";
-
-type Rol = "administrador" | "trabajador";
+import type { Rol } from "../config/roles.js";
+import { HttpError } from "../utils/httpError.js";
+import { usuarioDeSesion, type AuthRequest } from "./auth.middleware.js";
 
 export function permitirRoles(...rolesPermitidos: Rol[]) {
-  return (
-    request: AuthRequest,
-    response: Response,
-    next: NextFunction,
-  ): void => {
-    const usuario = request.usuario;
-
-    if (!usuario) {
-      response.status(401).json({
-        ok: false,
-        message: "No hay una sesión activa",
-      });
-      return;
-    }
+  return (request: AuthRequest, _response: Response, next: NextFunction) => {
+    const usuario = usuarioDeSesion(request);
 
     if (!rolesPermitidos.includes(usuario.rol)) {
-      response.status(403).json({
-        ok: false,
-        message: "No tiene permisos para realizar esta acción",
-      });
-      return;
+      throw new HttpError(403, "No tiene permisos para realizar esta acción");
     }
 
     next();

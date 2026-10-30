@@ -1,17 +1,19 @@
 import dns from "node:dns";
 import mongoose from "mongoose";
 
-// DNS públicos para evitar problemas de resolución SRV en algunas redes
-dns.setServers(["8.8.8.8", "1.1.1.1"]);
+import { env } from "./env.js";
 
 export async function connectDatabase(): Promise<void> {
-  const mongoUri = process.env.MONGODB_URI;
-
-  if (!mongoUri) {
-    throw new Error("MONGODB_URI no está configurada");
+  // Solo si se configuró: cambia el DNS de todo el proceso.
+  if (env.MONGODB_DNS_SERVERS.length > 0) {
+    dns.setServers(env.MONGODB_DNS_SERVERS);
   }
 
-  await mongoose.connect(mongoUri);
+  await mongoose.connect(env.MONGODB_URI);
 
   console.log("MongoDB conectado correctamente");
+}
+
+export async function disconnectDatabase(): Promise<void> {
+  await mongoose.disconnect();
 }

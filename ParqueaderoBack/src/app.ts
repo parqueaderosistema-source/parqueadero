@@ -1,30 +1,28 @@
-import "dotenv/config";
-
 import cors from "cors";
 import express, { type Express } from "express";
 import helmet from "helmet";
 import { rateLimit } from "express-rate-limit";
 import cookieParser from "cookie-parser";
+
+import { opcionesCors } from "./config/cors.js";
+import { env } from "./config/env.js";
+import {
+  manejarErrores,
+  rutaNoEncontrada,
+} from "./middlewares/error.middleware.js";
 import authRoutes from "./routes/auth.routes.js";
-import pruebaRoutes from "./routes/prueba.routes.js";
 import tipoVehiculoRoutes from "./routes/tipoVehiculo.routes.js";
 import registroRoutes from "./routes/registro.routes.js";
 import historialRoutes from "./routes/historial.routes.js";
 
 const app: Express = express();
 
-const frontendUrl = process.env.FRONTEND_URL ?? "http://localhost:4200";
+// Detrás de un proxy, para que el rate limit use la IP real del cliente.
+app.set("trust proxy", env.TRUST_PROXY);
 
 app.use(helmet());
 
-app.use(
-  cors({
-    origin: frontendUrl,
-    credentials: true,
-    // Permite al front leer el nombre del archivo en las descargas (Excel).
-    exposedHeaders: ["Content-Disposition"],
-  }),
-);
+app.use(cors(opcionesCors));
 
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
@@ -34,6 +32,10 @@ const apiLimiter = rateLimit({
   limit: 300,
   standardHeaders: true,
   legacyHeaders: false,
+  message: {
+    ok: false,
+    message: "Demasiadas peticiones. Intente nuevamente más tarde.",
+  },
 });
 
 app.use("/api", apiLimiter);
@@ -58,19 +60,15 @@ app.get("/api/health", (_request, response) => {
   });
 });
 
-/**
- * Siempre debe ir al final.
- */
 app.use("/api/historial", historialRoutes);
 app.use("/api/registros", registroRoutes);
 app.use("/api/tipos-vehiculo", tipoVehiculoRoutes);
-app.use("/api/prueba", pruebaRoutes);
 app.use("/api/auth", authRoutes);
-app.use((_request, response) => {
-  response.status(404).json({
-    ok: false,
-    message: "Ruta no encontrada",
-  });
-});
+
+/**
+ * Siempre deben ir al final.
+ */
+app.use(rutaNoEncontrada);
+app.use(manejarErrores);
 
 export default app;

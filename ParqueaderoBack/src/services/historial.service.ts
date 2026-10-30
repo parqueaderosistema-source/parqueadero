@@ -1,18 +1,19 @@
-import { DateTime } from "luxon";
-import ExcelJS from "exceljs";
-
 import { Types } from "mongoose";
 
-import { AuditoriaModel } from "../models/Auditoria.js";
 import { RegistroParqueaderoModel } from "../models/RegistroParqueadero.js";
-import { conTipoMostrado } from "./registro.service.js";
 import {
   obtenerRangoDias,
   obtenerRangoMes,
   obtenerZonaHoraria,
 } from "../utils/fechas.js";
 import { HttpError } from "../utils/httpError.js";
+import { conTipoMostrado } from "../utils/tipoMostrado.js";
 import type { FiltrosHistorial } from "../validators/historial.validator.js";
+import {
+  existeDescargaReciente,
+  registrarAuditoria,
+} from "./auditoria.service.js";
+import { construirExcelHistorial } from "./historialExcel.service.js";
 
 /**
  * Historial con filtros y paginación.
@@ -286,12 +287,6 @@ export async function obtenerVistaPreviaEliminacion(periodo: string) {
   };
 }
 
-const ESTADOS_EXCEL: Record<string, string> = {
-  dentro: "Dentro",
-  retirado: "Retirado",
-  anulado: "Anulado",
-};
-
 /**
  * Genera el Excel del mes y registra la descarga en la auditoría.
  */
@@ -299,8 +294,6 @@ export async function generarExcelHistorial(
   periodo: string,
   usuarioId: string,
 ): Promise<{ archivo: Buffer; nombreArchivo: string }> {
-  const timezone = obtenerZonaHoraria();
-
   const registros = await RegistroParqueaderoModel.find(
     filtroEntradasDelPeriodo(periodo),
   )
@@ -319,71 +312,13 @@ export async function generarExcelHistorial(
     throw new HttpError(404, "No hay registros en ese periodo");
   }
 
-  const formatear = (fecha: Date | null | undefined) =>
-    fecha
-      ? DateTime.fromJSDate(new Date(fecha))
-          .setZone(timezone)
-          .toFormat("dd/MM/yyyy hh:mm a")
-      : "";
+  const { archivo, totalRecaudado } = await construirExcelHistorial(
+    registros,
+    obtenerZonaHoraria(),
+  );
 
-  const workbook = new ExcelJS.Workbook();
-  workbook.creator = "Sistema de Parqueadero";
-  workbook.created = new Date();
-
-  const hoja = workbook.addWorksheet("Historial");
-
-  hoja.columns = [
-    { header: "Placa", key: "placa", width: 12 },
-    { header: "Tipo de vehículo", key: "tipo", width: 24 },
-    { header: "Entrada", key: "entrada", width: 20 },
-    { header: "Salida", key: "salida", width: 20 },
-    { header: "Tiempo indicado", key: "tiempoEstimado", width: 18 },
-    { header: "Valor cobrado", key: "valorCobrado", width: 15 },
-    { header: "Estado", key: "estado", width: 11 },
-    { header: "Observación", key: "observacion", width: 35 },
-    { header: "Registró entrada", key: "registroEntrada", width: 20 },
-    { header: "Registró salida", key: "registroSalida", width: 20 },
-  ];
-
-  let totalRecaudado = 0;
-  let retirados = 0;
-
-  for (const registro of registros) {
-    if (registro.estado === "retirado") {
-      totalRecaudado += registro.valorCobrado ?? 0;
-      retirados += 1;
-    }
-
-    hoja.addRow({
-      placa: registro.placa,
-      tipo: conTipoMostrado(registro).tipoMostrado,
-      entrada: formatear(registro.fechaHoraEntrada),
-      salida: formatear(registro.fechaHoraSalida),
-      tiempoEstimado: registro.tiempoEstimado,
-      valorCobrado: registro.valorCobrado ?? null,
-      estado: ESTADOS_EXCEL[registro.estado] ?? registro.estado,
-      observacion: registro.observacion ?? "",
-      registroEntrada: registro.registradoEntradaPor?.nombre ?? "",
-      registroSalida: registro.registradoSalidaPor?.nombre ?? "",
-    });
-  }
-
-  // Fila de totales: solo suman los retirados (los anulados no cuentan).
-  const filaTotales = hoja.addRow({
-    placa: "TOTAL",
-    tipo: `${registros.length} registros · ${retirados} retirados`,
-    valorCobrado: totalRecaudado,
-  });
-  filaTotales.font = { bold: true };
-
-  hoja.getRow(1).font = { bold: true };
-  hoja.getColumn("valorCobrado").numFmt = "$#,##0";
-  hoja.views = [{ state: "frozen", ySplit: 1 }];
-
-  const archivo = Buffer.from(await workbook.xlsx.writeBuffer());
-
-  await AuditoriaModel.create({
-    usuario: usuarioId,
+  await registrarAuditoria({
+    usuarioId,
     accion: "HISTORIAL_DESCARGADO",
     descripcion: `Descarga del historial de ${obtenerNombrePeriodo(periodo)}`,
     datos: {
@@ -440,14 +375,11 @@ export async function eliminarHistorialMes(datos: {
     }
 
     // Se comprueba en la auditoría que la descarga realmente ocurrió.
-    const descargaReciente = await AuditoriaModel.exists({
-      accion: "HISTORIAL_DESCARGADO",
-      usuario: usuarioId,
-      "datos.periodo": periodo,
-      createdAt: {
-        $gte: new Date(Date.now() - MINUTOS_VALIDEZ_DESCARGA * 60 * 1000),
-      },
-    });
+    const descargaReciente = await existeDescargaReciente(
+      usuarioId,
+      periodo,
+      MINUTOS_VALIDEZ_DESCARGA,
+    );
 
     if (!descargaReciente) {
       throw new HttpError(
@@ -469,8 +401,8 @@ export async function eliminarHistorialMes(datos: {
 
   const fechaEliminacion = new Date();
 
-  await AuditoriaModel.create({
-    usuario: usuarioId,
+  await registrarAuditoria({
+    usuarioId,
     accion: "HISTORIAL_MENSUAL_ELIMINADO",
     descripcion: `Se eliminó el historial de ${vistaPrevia.nombrePeriodo}`,
     datos: {
