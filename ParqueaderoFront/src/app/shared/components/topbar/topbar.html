@@ -13,7 +13,7 @@
     <h2
       class="font-bold text-slate-900"
     >
-      Panel de trabajo
+      {{ titulo() }}
     </h2>
 
   </div>
@@ -24,18 +24,19 @@
 
     <div
       class="hidden text-right sm:block"
+      [attr.title]="correoUsuario() || null"
     >
 
       <p
         class="text-sm font-semibold text-slate-900"
       >
-        {{ usuario()?.nombre || 'Usuario' }}
+        {{ nombreUsuario() }}
       </p>
 
       <p
-        class="text-xs capitalize text-slate-500"
+        class="text-xs text-slate-500"
       >
-        {{ usuario()?.rol }}
+        {{ rolUsuario() }}
       </p>
 
     </div>
@@ -43,7 +44,8 @@
     <button
       type="button"
       (click)="cerrarSesion()"
-      class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+      [disabled]="cerrandoSesion()"
+      class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
     >
       Cerrar sesión
     </button>
