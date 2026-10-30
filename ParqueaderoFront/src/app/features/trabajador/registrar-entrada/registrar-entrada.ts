@@ -10,6 +10,13 @@ import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
 import { TipoVehiculo } from '../../../core/models/parqueadero.model';
 
+import {
+  obtenerErroresDeCampo,
+  obtenerMensajeError,
+} from '../../../core/utils/http-error';
+
+import { placaValidator } from '../../../core/validators/parqueadero.validators';
+
 @Component({
   selector: 'app-registrar-entrada',
 
@@ -34,6 +41,11 @@ export class RegistrarEntrada implements OnInit {
 
   readonly mostrarTipoPersonalizado = signal(false);
 
+  /**
+   * Errores por campo que devuelve el servidor (400).
+   */
+  readonly erroresServidor = signal<Record<string, string>>({});
+
   readonly formulario;
 
   constructor(
@@ -42,15 +54,7 @@ export class RegistrarEntrada implements OnInit {
     private readonly parqueaderoService: ParqueaderoService,
   ) {
     this.formulario = this.fb.nonNullable.group({
-      placa: [
-        '',
-        [
-          Validators.required,
-          Validators.minLength(3),
-          Validators.maxLength(20),
-          Validators.pattern(/^[a-zA-Z0-9-]+$/),
-        ],
-      ],
+      placa: ['', [Validators.required, placaValidator()]],
 
       tipoVehiculoId: ['', Validators.required],
 
@@ -81,20 +85,41 @@ export class RegistrarEntrada implements OnInit {
           this.tiposVehiculo.set(respuesta.tipos);
         },
 
-        error: () => {
-          this.mensajeError.set('No fue posible cargar los tipos de vehículo.');
+        error: (error) => {
+          this.mensajeError.set(
+            obtenerMensajeError(
+              error,
+              'No fue posible cargar los tipos de vehículo.',
+            ),
+          );
         },
       });
   }
 
+  /**
+   * Solo pasa a mayúsculas; los espacios y guiones
+   * se conservan porque el servidor normaliza la placa.
+   */
   convertirPlacaMayusculas(): void {
     const control = this.formulario.controls.placa;
 
-    const valor = control.value.toUpperCase().replace(/\s+/g, '');
-
-    control.setValue(valor, {
+    control.setValue(control.value.toUpperCase(), {
       emitEvent: false,
     });
+
+    this.limpiarErrorServidor('placa');
+  }
+
+  limpiarErrorServidor(campo: string): void {
+    if (!this.erroresServidor()[campo]) {
+      return;
+    }
+
+    const errores = { ...this.erroresServidor() };
+
+    delete errores[campo];
+
+    this.erroresServidor.set(errores);
   }
 
   cambioTipoVehiculo(): void {
@@ -128,15 +153,22 @@ export class RegistrarEntrada implements OnInit {
 
     this.mostrarTipoPersonalizado.set(false);
 
+    this.erroresServidor.set({});
+
     this.mensajeError.set('');
     this.mensajeExito.set('');
   }
 
   registrar(): void {
+    if (this.guardando()) {
+      return;
+    }
+
     this.mensajeExito.set('');
     this.mensajeError.set('');
+    this.erroresServidor.set({});
 
-    if (this.formulario.invalid || this.guardando()) {
+    if (this.formulario.invalid) {
       this.formulario.markAllAsTouched();
 
       return;
@@ -194,8 +226,20 @@ export class RegistrarEntrada implements OnInit {
         },
 
         error: (error) => {
+          /**
+           * 400 con "errores": se muestran bajo cada campo.
+           * 400 sin "errores", 409 y 500: se muestra el message.
+           */
+          const errores = obtenerErroresDeCampo(error);
+
+          if (Object.keys(errores).length > 0) {
+            this.erroresServidor.set(errores);
+
+            return;
+          }
+
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible registrar la entrada.',
+            obtenerMensajeError(error, 'No fue posible registrar la entrada.'),
           );
         },
       });

@@ -6,6 +6,8 @@ import { finalize } from 'rxjs';
 
 import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
+import { obtenerMensajeError } from '../../../core/utils/http-error';
+
 @Component({
   selector: 'app-dashboard-trabajador',
 
@@ -61,7 +63,7 @@ export class DashboardTrabajador implements OnInit {
 
         error: (error) => {
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible cargar el resumen.',
+            obtenerMensajeError(error, 'No fue posible cargar el resumen.'),
           );
         },
       });
