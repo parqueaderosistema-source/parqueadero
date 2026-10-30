@@ -7,8 +7,8 @@ import { Observable, catchError, finalize, map, of, switchMap, tap } from 'rxjs'
 import { AdminService } from '../../../../core/services/admin.service';
 
 import {
-  FormatoExportacion,
-  PrepararEliminacionResponse,
+  ModoEliminacion,
+  VistaPreviaEliminacionResponse,
 } from '../../../../core/models/admin.model';
 
 import { obtenerMensajeError } from '../../../../core/utils/http-error';
@@ -19,7 +19,7 @@ import { formatearDinero, formatearPeriodo } from '../../../../core/utils/format
 
 /**
  * Descargar y eliminar el historial de un mes.
- * El texto de confirmación lo define el back (confirmacionRequerida).
+ * El texto de confirmación lo define el back ("ELIMINAR AAAA-MM").
  */
 @Component({
   selector: 'app-gestion-mes',
@@ -33,24 +33,13 @@ export class GestionMes {
 
   readonly periodo = input.required<string>();
 
-  /**
-   * Totales de la tabla, para la vista previa
-   * cuando el mes no se puede eliminar (mes actual).
-   */
-  readonly cantidadRegistros = input(0);
-
-  readonly totalRecaudado = input(0);
-
   readonly eliminado = output<void>();
 
   readonly preparando = signal(false);
 
-  readonly preparacion = signal<PrepararEliminacionResponse | null>(null);
+  readonly vistaPrevia = signal<VistaPreviaEliminacionResponse | null>(null);
 
-  /**
-   * Motivo por el que el mes no se puede eliminar (400 del back).
-   */
-  readonly motivoNoEliminable = signal('');
+  readonly errorVistaPrevia = signal('');
 
   readonly descargando = signal(false);
 
@@ -70,20 +59,8 @@ export class GestionMes {
     () => this.preparando() || this.descargando() || this.eliminando(),
   );
 
-  readonly cantidadVistaPrevia = computed(
-    () => this.preparacion()?.cantidadRegistros ?? this.cantidadRegistros(),
-  );
-
-  readonly recaudoVistaPrevia = computed(
-    () => this.preparacion()?.totalRecaudado ?? this.totalRecaudado(),
-  );
-
-  readonly puedeEliminar = computed(
-    () => !!this.preparacion() && this.cantidadVistaPrevia() > 0,
-  );
-
   readonly confirmacionCorrecta = computed(() => {
-    const requerida = this.preparacion()?.confirmacionRequerida;
+    const requerida = this.vistaPrevia()?.confirmacionRequerida;
 
     return !!requerida && this.confirmacion().trim() === requerida;
   });
@@ -92,60 +69,39 @@ export class GestionMes {
     toObservable(this.periodo)
       .pipe(
         tap(() => {
-          this.preparacion.set(null);
-          this.motivoNoEliminable.set('');
           this.confirmacion.set('');
           this.mensajeError.set('');
           this.mensajeExito.set('');
-          this.preparando.set(true);
         }),
 
-        switchMap((periodo) =>
-          this.adminService.prepararEliminacionMes(periodo).pipe(
-            catchError((error) => {
-              this.motivoNoEliminable.set(
-                obtenerMensajeError(
-                  error,
-                  'Este mes no se puede eliminar.',
-                ),
-              );
-
-              return of(null);
-            }),
-
-            finalize(() => {
-              this.preparando.set(false);
-            }),
-          ),
-        ),
+        switchMap(() => this.cargarVistaPrevia()),
 
         takeUntilDestroyed(),
       )
-      .subscribe((respuesta) => {
-        this.preparacion.set(respuesta);
-      });
+      .subscribe();
   }
 
   actualizarConfirmacion(valor: string): void {
     this.confirmacion.set(valor);
   }
 
-  descargar(formato: FormatoExportacion): void {
+  descargar(): void {
     if (this.ocupado()) {
       return;
     }
 
     this.limpiarMensajes();
 
-    this.descargarArchivo(formato).subscribe((exito) => {
+    this.descargarExcel().subscribe((exito) => {
       if (exito) {
-        this.mensajeExito.set('Archivo descargado correctamente.');
+        this.mensajeExito.set('Excel descargado correctamente.');
       }
     });
   }
 
   /**
    * Solo elimina si la descarga del Excel fue exitosa.
+   * El back además verifica en la auditoría que la descarga ocurrió.
    */
   descargarYEliminar(): void {
     if (this.ocupado() || !this.confirmacionCorrecta()) {
@@ -154,9 +110,9 @@ export class GestionMes {
 
     this.limpiarMensajes();
 
-    this.descargarArchivo('xlsx').subscribe((exito) => {
+    this.descargarExcel().subscribe((exito) => {
       if (exito) {
-        this.eliminar(true);
+        this.eliminar('descargar-y-eliminar');
       }
     });
   }
@@ -168,13 +124,42 @@ export class GestionMes {
 
     this.limpiarMensajes();
 
-    this.eliminar(false);
+    this.eliminar('sin-descargar');
   }
 
-  private descargarArchivo(formato: FormatoExportacion): Observable<boolean> {
+  private cargarVistaPrevia(): Observable<unknown> {
+    this.vistaPrevia.set(null);
+
+    this.errorVistaPrevia.set('');
+
+    this.preparando.set(true);
+
+    return this.adminService.prepararEliminacionMes(this.periodo()).pipe(
+      tap((respuesta) => {
+        this.vistaPrevia.set(respuesta);
+      }),
+
+      catchError((error) => {
+        this.errorVistaPrevia.set(
+          obtenerMensajeError(
+            error,
+            'No fue posible obtener la vista previa del mes.',
+          ),
+        );
+
+        return of(null);
+      }),
+
+      finalize(() => {
+        this.preparando.set(false);
+      }),
+    );
+  }
+
+  private descargarExcel(): Observable<boolean> {
     this.descargando.set(true);
 
-    return this.adminService.descargarHistorialMes(this.periodo(), formato).pipe(
+    return this.adminService.descargarHistorialMes(this.periodo()).pipe(
       map(({ archivo, nombre }) => {
         guardarArchivo(archivo, nombre);
 
@@ -185,7 +170,7 @@ export class GestionMes {
         this.mensajeError.set(
           obtenerMensajeError(
             error,
-            'No fue posible descargar el archivo. No se eliminó nada.',
+            'No fue posible descargar el Excel. No se eliminó nada.',
           ),
         );
 
@@ -198,13 +183,14 @@ export class GestionMes {
     );
   }
 
-  private eliminar(respaldoDescargado: boolean): void {
+  private eliminar(modo: ModoEliminacion): void {
     this.eliminando.set(true);
 
     this.adminService
       .eliminarMes(this.periodo(), {
         confirmacion: this.confirmacion().trim(),
-        respaldoDescargado,
+        modo,
+        descargado: modo === 'descargar-y-eliminar',
       })
       .pipe(
         finalize(() => {
@@ -213,19 +199,24 @@ export class GestionMes {
       )
       .subscribe({
         next: (respuesta) => {
-          const { cantidadEliminada } = respuesta.resultado;
+          const { cantidadEliminada, dentroConservados } = respuesta.resultado;
+
+          const conservados =
+            dentroConservados > 0
+              ? ` Se conservaron ${dentroConservados} vehículos que siguen dentro.`
+              : '';
 
           this.mensajeExito.set(
             `${respuesta.message}: ${cantidadEliminada} ${
               cantidadEliminada === 1 ? 'registro eliminado' : 'registros eliminados'
-            }${respaldoDescargado ? ' (respaldo descargado)' : ''}.`,
+            }.${conservados}`,
           );
 
           this.confirmacion.set('');
 
-          this.preparacion.set(null);
-
           this.eliminado.emit();
+
+          this.cargarVistaPrevia().subscribe();
         },
 
         error: (error) => {

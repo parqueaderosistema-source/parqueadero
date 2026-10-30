@@ -9,7 +9,7 @@
     </h2>
 
     <p class="mt-1 text-sm text-slate-500">
-      Descarga el respaldo y libera espacio eliminando el historial de
+      Descarga el respaldo en Excel y libera espacio eliminando el historial de
       <span class="font-semibold capitalize text-slate-700">{{ formatearPeriodo(periodo()) }}</span>.
     </p>
 
@@ -18,21 +18,55 @@
 
   <div class="space-y-6 p-6">
 
+    @if (errorVistaPrevia()) {
+
+      <div
+        class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        role="alert"
+      >
+        {{ errorVistaPrevia() }}
+      </div>
+
+    }
+
+
     <!-- VISTA PREVIA -->
 
-    <div class="grid grid-cols-2 gap-3">
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
 
       <div class="rounded-2xl bg-slate-50 p-4">
-        <p class="text-xs font-medium text-slate-500">Registros</p>
+        <p class="text-xs font-medium text-slate-500">Se eliminarían</p>
         <p class="mt-1 text-2xl font-bold text-slate-950">
-          {{ preparando() ? '—' : cantidadVistaPrevia() }}
+          {{ preparando() ? '—' : (vistaPrevia()?.cantidadAEliminar ?? '—') }}
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Retirados / anulados</p>
+        <p class="mt-1 text-2xl font-bold text-slate-950">
+          @if (vistaPrevia(); as datos) {
+            {{ datos.retirados }} / {{ datos.anulados }}
+          } @else {
+            —
+          }
         </p>
       </div>
 
       <div class="min-w-0 rounded-2xl bg-slate-50 p-4">
         <p class="text-xs font-medium text-slate-500">Recaudo</p>
         <p class="mt-1 break-words text-2xl font-bold text-slate-950">
-          {{ preparando() ? '—' : formatearDinero(recaudoVistaPrevia()) }}
+          @if (vistaPrevia(); as datos) {
+            {{ formatearDinero(datos.recaudo) }}
+          } @else {
+            —
+          }
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Dentro (se conservan)</p>
+        <p class="mt-1 text-2xl font-bold text-slate-950">
+          {{ vistaPrevia()?.dentroConservados ?? '—' }}
         </p>
       </div>
 
@@ -64,31 +98,18 @@
 
     <!-- DESCARGA -->
 
-    <div class="flex flex-col gap-3 sm:flex-row">
-
-      <button
-        type="button"
-        (click)="descargar('xlsx')"
-        [disabled]="ocupado() || cantidadVistaPrevia() === 0"
-        class="rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        @if (descargando() && !eliminando()) {
-          Descargando...
-        } @else {
-          Descargar Excel
-        }
-      </button>
-
-      <button
-        type="button"
-        (click)="descargar('csv')"
-        [disabled]="ocupado() || cantidadVistaPrevia() === 0"
-        class="rounded-xl border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-      >
-        Descargar CSV
-      </button>
-
-    </div>
+    <button
+      type="button"
+      (click)="descargar()"
+      [disabled]="ocupado()"
+      class="w-full rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      @if (descargando() && !eliminando()) {
+        Descargando...
+      } @else {
+        Descargar Excel
+      }
+    </button>
 
 
     <!-- ELIMINACIÓN -->
@@ -99,17 +120,17 @@
         Verificando si el mes se puede eliminar...
       </p>
 
-    } @else if (motivoNoEliminable()) {
+    } @else if (vistaPrevia(); as datos) {
 
-      <div
-        class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800"
-      >
-        {{ motivoNoEliminable() }}
-      </div>
+      @if (!datos.eliminable) {
 
-    } @else if (preparacion(); as datos) {
+        <div
+          class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800"
+        >
+          {{ datos.motivoNoEliminable || 'Este mes no se puede eliminar.' }}
+        </div>
 
-      @if (puedeEliminar()) {
+      } @else {
 
         <div class="rounded-2xl border border-red-200 bg-red-50/60 p-5">
 
@@ -118,9 +139,9 @@
           </p>
 
           <p class="mt-1 text-sm text-red-700">
-            Se borrarán definitivamente {{ datos.cantidadRegistros }}
-            {{ datos.cantidadRegistros === 1 ? 'registro' : 'registros' }}
-            ({{ formatearDinero(datos.totalRecaudado) }}). Esta acción no se puede deshacer.
+            Se borrarán definitivamente {{ datos.cantidadAEliminar }}
+            {{ datos.cantidadAEliminar === 1 ? 'registro' : 'registros' }}
+            ({{ formatearDinero(datos.recaudo) }}). Esta acción no se puede deshacer.
           </p>
 
           <label
@@ -175,12 +196,6 @@
           </div>
 
         </div>
-
-      } @else {
-
-        <p class="text-sm text-slate-500">
-          Este mes no tiene registros para eliminar.
-        </p>
 
       }
 

@@ -9,17 +9,16 @@ import {
   TiposVehiculoAdminResponse,
   EliminarMesRequest,
   EliminarMesResponse,
-  FormatoExportacion,
-  HistorialMesResponse,
+  FiltrosHistorial,
+  HistorialResponse,
   MesesHistorialResponse,
-  PrepararEliminacionResponse,
   ResumenAdminResponse,
+  VistaPreviaEliminacionResponse,
 } from '../models/admin.model';
 
 /**
- * Lee el nombre de 'attachment; filename="historial-2026-08.xlsx"'.
- * El navegador solo expone el encabezado si el back lo incluye
- * en "exposedHeaders" de CORS; si no, se usa el nombre por defecto.
+ * Lee el nombre de 'attachment; filename="historial-2026-08.xlsx"'
+ * (el back lo expone con exposedHeaders de CORS).
  */
 function nombreDesdeEncabezado(encabezado: string | null): string | null {
   const coincidencia = encabezado?.match(/filename="?([^";]+)"?/i);
@@ -84,31 +83,28 @@ export class AdminService {
     );
   }
 
-  obtenerHistorialMes(
-    periodo: string,
-    pagina: number,
-    limite: number,
-  ): Observable<HistorialMesResponse> {
-    return this.http.get<HistorialMesResponse>(
-      `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}`,
-      {
-        params: {
-          pagina,
-          limite,
-        },
-      },
-    );
+  /**
+   * Solo se envían los filtros con valor.
+   */
+  obtenerHistorial(filtros: FiltrosHistorial): Observable<HistorialResponse> {
+    const params: Record<string, string | number> = {};
+
+    for (const [clave, valor] of Object.entries(filtros)) {
+      if (valor !== undefined && valor !== null && valor !== '') {
+        params[clave] = valor;
+      }
+    }
+
+    return this.http.get<HistorialResponse>(`${this.apiUrl}/historial`, {
+      params,
+    });
   }
 
-  descargarHistorialMes(
-    periodo: string,
-    formato: FormatoExportacion,
-  ): Observable<ArchivoDescargado> {
+  descargarHistorialMes(periodo: string): Observable<ArchivoDescargado> {
     return this.http
       .get(
         `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}/exportar`,
         {
-          params: { formato },
           responseType: 'blob',
           observe: 'response',
         },
@@ -118,7 +114,7 @@ export class AdminService {
           archivo: respuesta.body ?? new Blob(),
           nombre:
             nombreDesdeEncabezado(respuesta.headers.get('Content-Disposition')) ??
-            `historial-${periodo}.${formato}`,
+            `historial-${periodo}.xlsx`,
         })),
 
         catchError(convertirErrorBlob),
@@ -127,8 +123,8 @@ export class AdminService {
 
   prepararEliminacionMes(
     periodo: string,
-  ): Observable<PrepararEliminacionResponse> {
-    return this.http.get<PrepararEliminacionResponse>(
+  ): Observable<VistaPreviaEliminacionResponse> {
+    return this.http.get<VistaPreviaEliminacionResponse>(
       `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}/preparar-eliminacion`,
     );
   }
