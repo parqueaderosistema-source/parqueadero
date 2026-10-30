@@ -1,166 +1,194 @@
 import { DateTime } from "luxon";
 import ExcelJS from "exceljs";
 
+import { Types } from "mongoose";
+
 import { AuditoriaModel } from "../models/Auditoria.js";
 import { RegistroParqueaderoModel } from "../models/RegistroParqueadero.js";
+import { conTipoMostrado } from "./registro.service.js";
+import {
+  obtenerRangoDias,
+  obtenerRangoMes,
+  obtenerZonaHoraria,
+} from "../utils/fechas.js";
+import { HttpError } from "../utils/httpError.js";
+import type { FiltrosHistorial } from "../validators/historial.validator.js";
 
 /**
- * Zona horaria utilizada por el parqueadero.
+ * Historial con filtros y paginación.
+ * Un registro pertenece al día/mes de su fecha de entrada.
  */
-function obtenerZonaHoraria(): string {
-  return process.env.APP_TIMEZONE ?? "America/Bogota";
-}
+export async function obtenerHistorial(filtros: FiltrosHistorial) {
+  const filtro: Record<string, unknown> = {};
 
-/**
- * Obtiene el inicio y fin de un mes.
- *
- * Ejemplo:
- * 2026-08
- */
-function obtenerRangoPeriodo(periodo: string) {
-  const timezone = obtenerZonaHoraria();
+  let rango: { inicioUtc?: Date; finUtc?: Date };
 
-  if (!/^\d{4}-\d{2}$/.test(periodo)) {
-    throw new Error("El periodo debe tener el formato AAAA-MM");
+  try {
+    rango = filtros.mes
+      ? obtenerRangoMes(filtros.mes)
+      : obtenerRangoDias(filtros.desde, filtros.hasta);
+  } catch (error) {
+    throw new HttpError(
+      400,
+      error instanceof Error ? error.message : "Rango de fechas no válido",
+    );
   }
 
-  const inicioLocal = DateTime.fromFormat(periodo, "yyyy-MM", {
-    zone: timezone,
-  }).startOf("month");
-
-  if (!inicioLocal.isValid) {
-    throw new Error("El periodo no es válido");
+  if (rango.inicioUtc || rango.finUtc) {
+    filtro.fechaHoraEntrada = {
+      ...(rango.inicioUtc ? { $gte: rango.inicioUtc } : {}),
+      ...(rango.finUtc ? { $lte: rango.finUtc } : {}),
+    };
   }
 
-  const finLocal = inicioLocal.endOf("month");
-
-  return {
-    inicioLocal,
-
-    inicioUtc: inicioLocal.toUTC().toJSDate(),
-
-    finUtc: finLocal.toUTC().toJSDate(),
-  };
-}
-
-/**
- * Crea el filtro que utilizaremos para buscar
- * registros retirados dentro de un mes.
- */
-function crearFiltroPeriodo(periodo: string) {
-  const { inicioUtc, finUtc } = obtenerRangoPeriodo(periodo);
-
-  return {
-    estado: "retirado" as const,
-
-    fechaHoraSalida: {
-      $gte: inicioUtc,
-      $lte: finUtc,
-    },
-  };
-}
-
-/**
- * Obtiene el resumen de todos los meses
- * que tienen vehículos retirados.
- */
-export async function obtenerResumenMensual() {
-  const timezone = obtenerZonaHoraria();
-
-  const registros = await RegistroParqueaderoModel.find({
-    estado: "retirado",
-
-    fechaHoraSalida: {
-      $ne: null,
-    },
-  })
-    .select("fechaHoraSalida valorCobrado")
-    .sort({
-      fechaHoraSalida: -1,
-    })
-    .lean();
-
-  const meses = new Map<
-    string,
-    {
-      periodo: string;
-      nombreMes: string;
-      cantidadRegistros: number;
-      totalRecaudado: number;
-    }
-  >();
-
-  for (const registro of registros) {
-    if (!registro.fechaHoraSalida) {
-      continue;
-    }
-
-    const fecha = DateTime.fromJSDate(
-      new Date(registro.fechaHoraSalida),
-    ).setZone(timezone);
-
-    const periodo = fecha.toFormat("yyyy-MM");
-
-    const existente = meses.get(periodo);
-
-    if (existente) {
-      existente.cantidadRegistros += 1;
-
-      existente.totalRecaudado += registro.valorCobrado ?? 0;
-    } else {
-      meses.set(periodo, {
-        periodo,
-
-        nombreMes: fecha.setLocale("es").toFormat("LLLL yyyy"),
-
-        cantidadRegistros: 1,
-
-        totalRecaudado: registro.valorCobrado ?? 0,
-      });
-    }
+  // La placa ya viene normalizada (solo A-Z y 0-9): es seguro usarla en la regex.
+  if (filtros.placa) {
+    filtro.placa = { $regex: filtros.placa };
   }
 
-  return Array.from(meses.values());
-}
+  if (filtros.tipoVehiculoId) {
+    filtro.tipoVehiculo = new Types.ObjectId(filtros.tipoVehiculoId);
+  }
 
-/**
- * Obtiene el historial de un mes.
- * Utiliza paginación para no cargar miles
- * de registros de una sola vez.
- */
-export async function obtenerHistorialDeMes(
-  periodo: string,
-  pagina = 1,
-  limite = 25,
-) {
-  const filtro = crearFiltroPeriodo(periodo);
+  if (filtros.estado) {
+    filtro.estado = filtros.estado;
+  }
 
-  const saltar = (pagina - 1) * limite;
+  const { page, limit } = filtros;
 
-  const [registros, total] = await Promise.all([
+  const [items, conteo] = await Promise.all([
     RegistroParqueaderoModel.find(filtro)
-      .sort({
-        fechaHoraSalida: -1,
-      })
-      .skip(saltar)
-      .limit(limite)
+      .sort({ fechaHoraEntrada: -1, _id: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .populate("registradoEntradaPor", "nombre")
+      .populate("registradoSalidaPor", "nombre")
+      .populate("anuladoPor", "nombre")
       .lean(),
 
-    RegistroParqueaderoModel.countDocuments(filtro),
+    contarPorEstado(filtro),
   ]);
 
-  const totalRecaudado = await RegistroParqueaderoModel.aggregate([
-    {
-      $match: filtro,
-    },
+  const resumen = {
+    registros: conteo.cantidad,
+    retirados: conteo.retirados,
+    anulados: conteo.anulados,
+    recaudo: conteo.recaudo,
+  };
 
+  return {
+    items: items.map(conTipoMostrado),
+    total: resumen.registros,
+    page,
+    limit,
+    totalPages: Math.ceil(resumen.registros / limit),
+    resumen,
+  };
+}
+
+/*
+ * Historial mensual: resumen por mes, exportación y eliminación.
+ * Un registro pertenece al mes de su fecha de entrada (Bogotá).
+ */
+
+/**
+ * Rango UTC de un mes, respondiendo 400 si el periodo no es válido.
+ */
+function rangoDelPeriodo(periodo: string) {
+  try {
+    return obtenerRangoMes(periodo);
+  } catch (error) {
+    throw new HttpError(
+      400,
+      error instanceof Error ? error.message : "El periodo no es válido",
+    );
+  }
+}
+
+function filtroEntradasDelPeriodo(periodo: string) {
+  const { inicioUtc, finUtc } = rangoDelPeriodo(periodo);
+
+  return {
+    fechaHoraEntrada: { $gte: inicioUtc, $lte: finUtc },
+  };
+}
+
+/**
+ * Lo que se borra al eliminar un mes: retirados y anulados.
+ * Los vehículos "dentro" nunca se eliminan.
+ */
+function filtroEliminablesDelPeriodo(periodo: string) {
+  return {
+    ...filtroEntradasDelPeriodo(periodo),
+    estado: { $in: ["retirado", "anulado"] as ("retirado" | "anulado")[] },
+  };
+}
+
+/**
+ * Ejemplo: 2026-08 → "agosto 2026"
+ */
+export function obtenerNombrePeriodo(periodo: string): string {
+  return rangoDelPeriodo(periodo)
+    .inicioLocal.setLocale("es")
+    .toFormat("LLLL yyyy");
+}
+
+/**
+ * Ejemplo: 2026-09 → "ELIMINAR 2026-09"
+ */
+export function obtenerConfirmacionEliminacion(periodo: string): string {
+  rangoDelPeriodo(periodo);
+
+  return `ELIMINAR ${periodo}`;
+}
+
+/**
+ * Motivo por el que no se puede eliminar un mes, o null si se puede.
+ */
+function motivoNoEliminable(periodo: string): string | null {
+  const { inicioLocal } = rangoDelPeriodo(periodo);
+
+  const mesActual = obtenerRangoMes().inicioLocal;
+
+  if (inicioLocal.hasSame(mesActual, "month")) {
+    return "No se puede eliminar el historial del mes en curso";
+  }
+
+  if (inicioLocal > mesActual) {
+    return "No se puede eliminar un periodo futuro";
+  }
+
+  return null;
+}
+
+/**
+ * Conteos por estado y recaudo (solo retirados) de un filtro.
+ */
+async function contarPorEstado(filtro: Record<string, unknown>) {
+  const resultado = await RegistroParqueaderoModel.aggregate<{
+    cantidad: number;
+    retirados: number;
+    anulados: number;
+    recaudo: number;
+  }>([
+    { $match: filtro },
     {
       $group: {
         _id: null,
-
-        total: {
+        cantidad: { $sum: 1 },
+        retirados: {
+          $sum: { $cond: [{ $eq: ["$estado", "retirado"] }, 1, 0] },
+        },
+        anulados: {
+          $sum: { $cond: [{ $eq: ["$estado", "anulado"] }, 1, 0] },
+        },
+        recaudo: {
           $sum: {
-            $ifNull: ["$valorCobrado", 0],
+            $cond: [
+              { $eq: ["$estado", "retirado"] },
+              { $ifNull: ["$valorCobrado", 0] },
+              0,
+            ],
           },
         },
       },
@@ -168,363 +196,301 @@ export async function obtenerHistorialDeMes(
   ]);
 
   return {
-    periodo,
-
-    pagina,
-
-    limite,
-
-    totalRegistros: total,
-
-    totalPaginas: total === 0 ? 0 : Math.ceil(total / limite),
-
-    totalRecaudado: totalRecaudado[0]?.total ?? 0,
-
-    registros,
+    cantidad: resultado[0]?.cantidad ?? 0,
+    retirados: resultado[0]?.retirados ?? 0,
+    anulados: resultado[0]?.anulados ?? 0,
+    recaudo: resultado[0]?.recaudo ?? 0,
   };
 }
 
 /**
- * Devuelve el nombre del mes.
- *
- * Ejemplo:
- * agosto 2026
+ * Resumen de todos los meses que tienen registros.
  */
-export function obtenerNombrePeriodo(periodo: string): string {
-  const { inicioLocal } = obtenerRangoPeriodo(periodo);
+export async function obtenerResumenMensual() {
+  const meses = await RegistroParqueaderoModel.aggregate<{
+    _id: string;
+    cantidadRegistros: number;
+    dentro: number;
+    retirados: number;
+    anulados: number;
+    totalRecaudado: number;
+  }>([
+    {
+      $group: {
+        _id: {
+          $dateToString: {
+            format: "%Y-%m",
+            date: "$fechaHoraEntrada",
+            timezone: obtenerZonaHoraria(),
+          },
+        },
+        cantidadRegistros: { $sum: 1 },
+        dentro: { $sum: { $cond: [{ $eq: ["$estado", "dentro"] }, 1, 0] } },
+        retirados: {
+          $sum: { $cond: [{ $eq: ["$estado", "retirado"] }, 1, 0] },
+        },
+        anulados: {
+          $sum: { $cond: [{ $eq: ["$estado", "anulado"] }, 1, 0] },
+        },
+        totalRecaudado: {
+          $sum: {
+            $cond: [
+              { $eq: ["$estado", "retirado"] },
+              { $ifNull: ["$valorCobrado", 0] },
+              0,
+            ],
+          },
+        },
+      },
+    },
+    { $sort: { _id: -1 } },
+  ]);
 
-  return inicioLocal.setLocale("es").toFormat("LLLL yyyy");
+  return meses.map(({ _id, ...datos }) => ({
+    periodo: _id,
+    nombreMes: obtenerNombrePeriodo(_id),
+    ...datos,
+  }));
 }
 
 /**
- * Genera el texto de confirmación.
- *
- * Ejemplo:
- * ELIMINAR AGOSTO 2026
+ * Vista previa de la eliminación: no borra nada.
  */
-export function obtenerConfirmacionEliminacion(periodo: string): string {
-  return `ELIMINAR ${obtenerNombrePeriodo(periodo).toUpperCase()}`;
+export async function obtenerVistaPreviaEliminacion(periodo: string) {
+  const [eliminables, dentroConservados] = await Promise.all([
+    contarPorEstado(filtroEliminablesDelPeriodo(periodo)),
+
+    RegistroParqueaderoModel.countDocuments({
+      ...filtroEntradasDelPeriodo(periodo),
+      estado: "dentro",
+    }),
+  ]);
+
+  const motivo =
+    motivoNoEliminable(periodo) ??
+    (eliminables.cantidad === 0
+      ? "No hay registros para eliminar en este periodo"
+      : null);
+
+  return {
+    periodo,
+    nombrePeriodo: obtenerNombrePeriodo(periodo),
+    cantidadAEliminar: eliminables.cantidad,
+    retirados: eliminables.retirados,
+    anulados: eliminables.anulados,
+    recaudo: eliminables.recaudo,
+    dentroConservados,
+    eliminable: motivo === null,
+    motivoNoEliminable: motivo,
+    confirmacionRequerida: obtenerConfirmacionEliminacion(periodo),
+  };
 }
 
+const ESTADOS_EXCEL: Record<string, string> = {
+  dentro: "Dentro",
+  retirado: "Retirado",
+  anulado: "Anulado",
+};
+
 /**
- * Verifica si un mes puede ser eliminado.
+ * Genera el Excel del mes y registra la descarga en la auditoría.
  */
-export function validarMesEliminable(periodo: string): void {
+export async function generarExcelHistorial(
+  periodo: string,
+  usuarioId: string,
+): Promise<{ archivo: Buffer; nombreArchivo: string }> {
   const timezone = obtenerZonaHoraria();
 
-  const { inicioLocal } = obtenerRangoPeriodo(periodo);
-
-  const mesActual = DateTime.now().setZone(timezone).startOf("month");
-
-  /**
-   * No permitimos borrar el mes actual.
-   */
-  if (
-    inicioLocal.year === mesActual.year &&
-    inicioLocal.month === mesActual.month
-  ) {
-    throw new Error("No se puede eliminar el historial del mes actual");
-  }
-
-  /**
-   * Tampoco permitimos eliminar
-   * meses futuros.
-   */
-  if (inicioLocal > mesActual) {
-    throw new Error("No se puede eliminar un periodo futuro");
-  }
-}
-
-/**
- * Obtiene todos los registros del mes
- * para descargarlos.
- */
-export async function obtenerRegistrosParaExportar(periodo: string) {
-  const filtro = crearFiltroPeriodo(periodo);
-
-  return RegistroParqueaderoModel.find(filtro)
-    .sort({
-      fechaHoraSalida: 1,
-    })
+  const registros = await RegistroParqueaderoModel.find(
+    filtroEntradasDelPeriodo(periodo),
+  )
+    .sort({ fechaHoraEntrada: 1 })
+    .populate<{ registradoEntradaPor: { nombre: string } | null }>(
+      "registradoEntradaPor",
+      "nombre",
+    )
+    .populate<{ registradoSalidaPor: { nombre: string } | null }>(
+      "registradoSalidaPor",
+      "nombre",
+    )
     .lean();
-}
 
-/**
- * Genera un Excel con el historial mensual.
- */
-export async function generarExcelHistorial(periodo: string): Promise<Buffer> {
-  const timezone = obtenerZonaHoraria();
+  if (registros.length === 0) {
+    throw new HttpError(404, "No hay registros en ese periodo");
+  }
 
-  const registros = await obtenerRegistrosParaExportar(periodo);
+  const formatear = (fecha: Date | null | undefined) =>
+    fecha
+      ? DateTime.fromJSDate(new Date(fecha))
+          .setZone(timezone)
+          .toFormat("dd/MM/yyyy hh:mm a")
+      : "";
 
   const workbook = new ExcelJS.Workbook();
-
   workbook.creator = "Sistema de Parqueadero";
-
   workbook.created = new Date();
 
   const hoja = workbook.addWorksheet("Historial");
 
   hoja.columns = [
-    {
-      header: "Placa",
-      key: "placa",
-      width: 16,
-    },
-
-    {
-      header: "Tipo de vehículo",
-      key: "tipo",
-      width: 25,
-    },
-
-    {
-      header: "Fecha de entrada",
-      key: "fechaEntrada",
-      width: 20,
-    },
-
-    {
-      header: "Hora de entrada",
-      key: "horaEntrada",
-      width: 18,
-    },
-
-    {
-      header: "Fecha de salida",
-      key: "fechaSalida",
-      width: 20,
-    },
-
-    {
-      header: "Hora de salida",
-      key: "horaSalida",
-      width: 18,
-    },
-
-    {
-      header: "Tiempo estimado",
-      key: "tiempoEstimado",
-      width: 22,
-    },
-
-    {
-      header: "Valor cobrado",
-      key: "valorCobrado",
-      width: 18,
-    },
-
-    {
-      header: "Observación",
-      key: "observacion",
-      width: 35,
-    },
+    { header: "Placa", key: "placa", width: 12 },
+    { header: "Tipo de vehículo", key: "tipo", width: 24 },
+    { header: "Entrada", key: "entrada", width: 20 },
+    { header: "Salida", key: "salida", width: 20 },
+    { header: "Tiempo indicado", key: "tiempoEstimado", width: 18 },
+    { header: "Valor cobrado", key: "valorCobrado", width: 15 },
+    { header: "Estado", key: "estado", width: 11 },
+    { header: "Observación", key: "observacion", width: 35 },
+    { header: "Registró entrada", key: "registroEntrada", width: 20 },
+    { header: "Registró salida", key: "registroSalida", width: 20 },
   ];
 
-  for (const registro of registros) {
-    const entrada = DateTime.fromJSDate(
-      new Date(registro.fechaHoraEntrada),
-    ).setZone(timezone);
+  let totalRecaudado = 0;
+  let retirados = 0;
 
-    const salida = registro.fechaHoraSalida
-      ? DateTime.fromJSDate(new Date(registro.fechaHoraSalida)).setZone(
-          timezone,
-        )
-      : null;
+  for (const registro of registros) {
+    if (registro.estado === "retirado") {
+      totalRecaudado += registro.valorCobrado ?? 0;
+      retirados += 1;
+    }
 
     hoja.addRow({
       placa: registro.placa,
-
-      tipo: registro.tipoVehiculoNombre,
-
-      fechaEntrada: entrada.toFormat("dd/MM/yyyy"),
-
-      horaEntrada: entrada.toFormat("hh:mm a"),
-
-      fechaSalida: salida?.toFormat("dd/MM/yyyy") ?? "",
-
-      horaSalida: salida?.toFormat("hh:mm a") ?? "",
-
+      tipo: conTipoMostrado(registro).tipoMostrado,
+      entrada: formatear(registro.fechaHoraEntrada),
+      salida: formatear(registro.fechaHoraSalida),
       tiempoEstimado: registro.tiempoEstimado,
-
-      valorCobrado: registro.valorCobrado ?? 0,
-
+      valorCobrado: registro.valorCobrado ?? null,
+      estado: ESTADOS_EXCEL[registro.estado] ?? registro.estado,
       observacion: registro.observacion ?? "",
+      registroEntrada: registro.registradoEntradaPor?.nombre ?? "",
+      registroSalida: registro.registradoSalidaPor?.nombre ?? "",
     });
   }
 
-  /**
-   * Encabezados en negrita.
-   */
-  hoja.getRow(1).font = {
-    bold: true,
-  };
+  // Fila de totales: solo suman los retirados (los anulados no cuentan).
+  const filaTotales = hoja.addRow({
+    placa: "TOTAL",
+    tipo: `${registros.length} registros · ${retirados} retirados`,
+    valorCobrado: totalRecaudado,
+  });
+  filaTotales.font = { bold: true };
 
-  /**
-   * Formato de dinero.
-   */
+  hoja.getRow(1).font = { bold: true };
   hoja.getColumn("valorCobrado").numFmt = "$#,##0";
+  hoja.views = [{ state: "frozen", ySplit: 1 }];
 
-  /**
-   * Mantiene visible la primera fila.
-   */
-  hoja.views = [
-    {
-      state: "frozen",
-      ySplit: 1,
+  const archivo = Buffer.from(await workbook.xlsx.writeBuffer());
+
+  await AuditoriaModel.create({
+    usuario: usuarioId,
+    accion: "HISTORIAL_DESCARGADO",
+    descripcion: `Descarga del historial de ${obtenerNombrePeriodo(periodo)}`,
+    datos: {
+      periodo,
+      cantidadRegistros: registros.length,
+      totalRecaudado,
     },
-  ];
+  });
 
-  const buffer = await workbook.xlsx.writeBuffer();
-
-  return Buffer.from(buffer);
+  return { archivo, nombreArchivo: `historial-${periodo}.xlsx` };
 }
 
-/**
- * Prepara correctamente los textos
- * que se escribirán en CSV.
- */
-function escaparCSV(valor: unknown): string {
-  const texto = String(valor ?? "");
-
-  return `"${texto.replace(/"/g, '""')}"`;
-}
+export type ModoEliminacion = "descargar-y-eliminar" | "sin-descargar";
 
 /**
- * Genera un archivo CSV.
+ * Minutos que pueden pasar entre la descarga y la eliminación
+ * en el modo "descargar-y-eliminar".
  */
-export async function generarCSVHistorial(periodo: string): Promise<Buffer> {
-  const timezone = obtenerZonaHoraria();
+const MINUTOS_VALIDEZ_DESCARGA = 60;
 
-  const registros = await obtenerRegistrosParaExportar(periodo);
+/**
+ * Elimina definitivamente los retirados y anulados de un mes cerrado.
+ */
+export async function eliminarHistorialMes(datos: {
+  periodo: string;
+  confirmacion: string;
+  modo: ModoEliminacion;
+  descargado: boolean;
+  usuarioId: string;
+}) {
+  const { periodo, modo, usuarioId } = datos;
 
-  const encabezados = [
-    "Placa",
-    "Tipo de vehículo",
-    "Fecha de entrada",
-    "Hora de entrada",
-    "Fecha de salida",
-    "Hora de salida",
-    "Tiempo estimado",
-    "Valor cobrado",
-    "Observación",
-  ];
+  const confirmacionRequerida = obtenerConfirmacionEliminacion(periodo);
 
-  const filas: string[] = [encabezados.map(escaparCSV).join(",")];
-
-  for (const registro of registros) {
-    const entrada = DateTime.fromJSDate(
-      new Date(registro.fechaHoraEntrada),
-    ).setZone(timezone);
-
-    const salida = registro.fechaHoraSalida
-      ? DateTime.fromJSDate(new Date(registro.fechaHoraSalida)).setZone(
-          timezone,
-        )
-      : null;
-
-    filas.push(
-      [
-        registro.placa,
-
-        registro.tipoVehiculoNombre,
-
-        entrada.toFormat("dd/MM/yyyy"),
-
-        entrada.toFormat("hh:mm a"),
-
-        salida?.toFormat("dd/MM/yyyy") ?? "",
-
-        salida?.toFormat("hh:mm a") ?? "",
-
-        registro.tiempoEstimado,
-
-        registro.valorCobrado ?? 0,
-
-        registro.observacion ?? "",
-      ]
-        .map(escaparCSV)
-        .join(","),
+  if (datos.confirmacion !== confirmacionRequerida) {
+    throw new HttpError(
+      400,
+      `La confirmación no es correcta. Escriba exactamente: ${confirmacionRequerida}`,
     );
   }
 
-  /**
-   * \uFEFF permite que Excel
-   * reconozca correctamente tildes,
-   * ñ y caracteres especiales.
-   */
-  return Buffer.from("\uFEFF" + filas.join("\n"), "utf8");
-}
+  const motivo = motivoNoEliminable(periodo);
 
-/**
- * Elimina definitivamente el historial
- * de un mes cerrado.
- */
-export async function eliminarHistorialMes(
-  periodo: string,
-  usuarioId: string,
-  respaldoDescargado: boolean,
-) {
-  validarMesEliminable(periodo);
-
-  const filtro = crearFiltroPeriodo(periodo);
-
-  /**
-   * Primero obtenemos información
-   * para poder guardar la auditoría.
-   */
-  const registros = await RegistroParqueaderoModel.find(filtro)
-    .select("valorCobrado")
-    .lean();
-
-  if (registros.length === 0) {
-    throw new Error("No existen registros para eliminar en ese periodo");
+  if (motivo) {
+    throw new HttpError(409, motivo);
   }
 
-  const totalRecaudado = registros.reduce(
-    (total, registro) => total + (registro.valorCobrado ?? 0),
+  if (modo === "descargar-y-eliminar") {
+    if (!datos.descargado) {
+      throw new HttpError(
+        400,
+        "En el modo descargar-y-eliminar debe descargar el Excel antes de eliminar",
+      );
+    }
 
-    0,
+    // Se comprueba en la auditoría que la descarga realmente ocurrió.
+    const descargaReciente = await AuditoriaModel.exists({
+      accion: "HISTORIAL_DESCARGADO",
+      usuario: usuarioId,
+      "datos.periodo": periodo,
+      createdAt: {
+        $gte: new Date(Date.now() - MINUTOS_VALIDEZ_DESCARGA * 60 * 1000),
+      },
+    });
+
+    if (!descargaReciente) {
+      throw new HttpError(
+        409,
+        `No hay una descarga de ${periodo} en los últimos ${MINUTOS_VALIDEZ_DESCARGA} minutos. Descargue el Excel nuevamente`,
+      );
+    }
+  }
+
+  const vistaPrevia = await obtenerVistaPreviaEliminacion(periodo);
+
+  if (vistaPrevia.cantidadAEliminar === 0) {
+    throw new HttpError(404, "No hay registros para eliminar en este periodo");
+  }
+
+  const resultado = await RegistroParqueaderoModel.deleteMany(
+    filtroEliminablesDelPeriodo(periodo),
   );
 
-  const cantidadAntes = registros.length;
+  const fechaEliminacion = new Date();
 
-  /**
-   * Eliminación real en MongoDB.
-   */
-  const resultado = await RegistroParqueaderoModel.deleteMany(filtro);
-
-  /**
-   * Aunque los vehículos sean eliminados,
-   * conservamos una auditoría pequeña.
-   */
   await AuditoriaModel.create({
     usuario: usuarioId,
-
     accion: "HISTORIAL_MENSUAL_ELIMINADO",
-
-    descripcion: `Se eliminó el historial de ${obtenerNombrePeriodo(periodo)}`,
-
+    descripcion: `Se eliminó el historial de ${vistaPrevia.nombrePeriodo}`,
     datos: {
       periodo,
-
-      cantidadRegistros: resultado.deletedCount,
-
-      cantidadAntes,
-
-      totalRecaudado,
-
-      respaldoDescargado,
+      modo,
+      cantidadEliminada: resultado.deletedCount,
+      retirados: vistaPrevia.retirados,
+      anulados: vistaPrevia.anulados,
+      totalRecaudado: vistaPrevia.recaudo,
+      dentroConservados: vistaPrevia.dentroConservados,
+      fechaEliminacion,
     },
   });
 
   return {
     periodo,
-
+    modo,
     cantidadEliminada: resultado.deletedCount,
-
-    totalRecaudado,
-
-    respaldoDescargado,
+    totalRecaudado: vistaPrevia.recaudo,
+    dentroConservados: vistaPrevia.dentroConservados,
+    fechaEliminacion,
   };
 }

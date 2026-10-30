@@ -22,6 +22,15 @@ const registroParqueaderoSchema = new Schema(
       trim: true,
     },
 
+    // Texto escrito por el trabajador cuando el tipo
+    // permite personalizado (ej. «Otro» → "Triciclo").
+    tipoVehiculoPersonalizado: {
+      type: String,
+      trim: true,
+      maxlength: 40,
+      default: null,
+    },
+
     fechaHoraEntrada: {
       type: Date,
       required: true,
@@ -69,6 +78,25 @@ const registroParqueaderoSchema = new Schema(
     registradoSalidaPor: {
       type: Types.ObjectId,
       ref: "Usuario",
+      default: null,
+    },
+
+    // Anulación (solo administrador). El registro no se borra.
+    anuladoPor: {
+      type: Types.ObjectId,
+      ref: "Usuario",
+      default: null,
+    },
+
+    fechaAnulacion: {
+      type: Date,
+      default: null,
+    },
+
+    motivoAnulacion: {
+      type: String,
+      trim: true,
+      maxlength: 200,
       default: null,
     },
   },

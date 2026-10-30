@@ -3,7 +3,11 @@ import { Types } from "mongoose";
 import { AuditoriaModel } from "../models/Auditoria.js";
 import { RegistroParqueaderoModel } from "../models/RegistroParqueadero.js";
 import { TipoVehiculoModel } from "../models/TipoVehiculo.js";
-import { DateTime } from "luxon";
+import {
+  obtenerRangoDiaActual,
+  obtenerRangoMes,
+  type RangoFechas,
+} from "../utils/fechas.js";
 import { HttpError } from "../utils/httpError.js";
 import { normalizarPlaca } from "../validators/registro.validator.js";
 
@@ -18,9 +22,70 @@ function esErrorDuplicado(error: unknown): boolean {
   );
 }
 
+/**
+ * Agrega tipoMostrado: el tipo personalizado si existe,
+ * o el nombre del tipo guardado al momento de la entrada.
+ */
+export function conTipoMostrado<
+  T extends {
+    tipoVehiculoNombre: string;
+    tipoVehiculoPersonalizado?: string | null;
+  },
+>(registro: T) {
+  return {
+    ...registro,
+    tipoVehiculoPersonalizado: registro.tipoVehiculoPersonalizado ?? null,
+    tipoMostrado:
+      registro.tipoVehiculoPersonalizado || registro.tipoVehiculoNombre,
+  };
+}
+
+const LARGO_MINIMO_PERSONALIZADO = 2;
+const LARGO_MAXIMO_PERSONALIZADO = 40;
+
+/**
+ * Valida el tipo personalizado según el flag del tipo de vehículo.
+ * Devuelve el valor a guardar (texto o null).
+ */
+function validarTipoPersonalizado(
+  tipo: { nombre: string; permitePersonalizado?: boolean | null },
+  personalizado: string | null,
+): string | null {
+  if (!tipo.permitePersonalizado) {
+    if (personalizado) {
+      throw new HttpError(
+        400,
+        `El tipo «${tipo.nombre}» no permite especificar un tipo personalizado`,
+      );
+    }
+
+    return null;
+  }
+
+  if (!personalizado) {
+    throw new HttpError(
+      400,
+      `Debe escribir el tipo de vehículo cuando selecciona «${tipo.nombre}»`,
+    );
+  }
+
+  if (
+    personalizado.length < LARGO_MINIMO_PERSONALIZADO ||
+    personalizado.length > LARGO_MAXIMO_PERSONALIZADO
+  ) {
+    throw new HttpError(
+      400,
+      `El tipo de vehículo debe tener entre ${LARGO_MINIMO_PERSONALIZADO} y ${LARGO_MAXIMO_PERSONALIZADO} caracteres`,
+    );
+  }
+
+  return personalizado;
+}
+
 interface EntradaDatos {
   placa: string;
   tipoVehiculoId: string;
+  tipoVehiculoPersonalizado: string | null;
   tiempoEstimado: string;
   observacion: string;
   usuarioId: string;
@@ -44,6 +109,11 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
     throw new HttpError(400, "El tipo de vehículo no existe o está desactivado");
   }
 
+  const tipoVehiculoPersonalizado = validarTipoPersonalizado(
+    tipoVehiculo,
+    datos.tipoVehiculoPersonalizado,
+  );
+
   const vehiculoDentro = await RegistroParqueaderoModel.findOne({
     placa: placaNormalizada,
     estado: "dentro",
@@ -61,6 +131,7 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
     placa: placaNormalizada,
     tipoVehiculo: tipoVehiculo._id,
     tipoVehiculoNombre: tipoVehiculo.nombre,
+    tipoVehiculoPersonalizado,
     fechaHoraEntrada: new Date(),
     tiempoEstimado: datos.tiempoEstimado,
     fechaHoraSalida: null,
@@ -85,20 +156,23 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
       registroId: registro._id,
       placa: placaNormalizada,
       tipoVehiculo: tipoVehiculo.nombre,
+      tipoVehiculoPersonalizado,
     },
   });
 
-  return registro;
+  return conTipoMostrado(registro.toObject());
 }
 
 export async function obtenerVehiculosDentro() {
-  return RegistroParqueaderoModel.find({
+  const registros = await RegistroParqueaderoModel.find({
     estado: "dentro",
   })
     .sort({
       fechaHoraEntrada: -1,
     })
     .lean();
+
+  return registros.map(conTipoMostrado);
 }
 interface SalidaDatos {
   placa: string;
@@ -136,7 +210,7 @@ export async function buscarVehiculoDentroPorPlaca(placa: string) {
   const minutos = minutosTotales % 60;
 
   return {
-    ...registro,
+    ...conTipoMostrado(registro),
     tiempoTranscurrido: {
       dias,
       horas,
@@ -215,102 +289,86 @@ export async function registrarSalidaVehiculo(datos: SalidaDatos) {
     },
   });
 
-  return registro;
+  return conTipoMostrado(registro.toObject());
 }
-export async function obtenerRecaudoDelDia() {
-  const timezone = process.env.APP_TIMEZONE ?? "America/Bogota";
 
-  const ahora = DateTime.now().setZone(timezone);
-
-  const inicioDia = ahora.startOf("day").toUTC().toJSDate();
-
-  const finDia = ahora.endOf("day").toUTC().toJSDate();
-
-  const registros = await RegistroParqueaderoModel.find({
-    estado: "retirado",
-
-    fechaHoraSalida: {
-      $gte: inicioDia,
-      $lte: finDia,
-    },
-  })
-    .sort({
-      fechaHoraSalida: -1,
-    })
-    .lean();
-
-  const totalRecaudado = registros.reduce(
-    (total, registro) => total + (registro.valorCobrado ?? 0),
-    0,
-  );
-
+/**
+ * Filtro de salidas cobradas dentro de un rango.
+ * Es la única definición de "recaudo": la usan la caja,
+ * el resumen del día y el dashboard del administrador.
+ * Los anulados no cuentan porque su estado no es "retirado".
+ */
+function crearFiltroSalidas(rango: RangoFechas) {
   return {
-    fecha: ahora.toISODate(),
-    totalVehiculos: registros.length,
-    totalRecaudado,
-    registros,
+    estado: "retirado" as const,
+    fechaHoraSalida: {
+      $gte: rango.inicioUtc,
+      $lte: rango.finUtc,
+    },
   };
 }
+
+async function calcularRecaudo(rango: RangoFechas): Promise<number> {
+  const resultado = await RegistroParqueaderoModel.aggregate<{
+    total: number;
+  }>([
+    { $match: crearFiltroSalidas(rango) },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: { $ifNull: ["$valorCobrado", 0] } },
+      },
+    },
+  ]);
+
+  return resultado[0]?.total ?? 0;
+}
+
+export async function obtenerRecaudoDelDia() {
+  const rango = obtenerRangoDiaActual();
+
+  const [registros, totalRecaudado] = await Promise.all([
+    RegistroParqueaderoModel.find(crearFiltroSalidas(rango))
+      .sort({
+        fechaHoraSalida: -1,
+      })
+      .lean(),
+
+    calcularRecaudo(rango),
+  ]);
+
+  return {
+    fecha: rango.inicioLocal.toISODate(),
+    totalVehiculos: registros.length,
+    totalRecaudado,
+    registros: registros.map(conTipoMostrado),
+  };
+}
+
 export async function obtenerResumenDelDia() {
-  const timezone = process.env.APP_TIMEZONE ?? "America/Bogota";
+  const rango = obtenerRangoDiaActual();
 
-  const ahora = DateTime.now().setZone(timezone);
-
-  const inicioDia = ahora.startOf("day").toUTC().toJSDate();
-
-  const finDia = ahora.endOf("day").toUTC().toJSDate();
-
-  const [vehiculosDentro, entradasHoy, salidasHoy, recaudo] = await Promise.all(
-    [
+  const [vehiculosDentro, entradasHoy, salidasHoy, recaudoHoy] =
+    await Promise.all([
       RegistroParqueaderoModel.countDocuments({
         estado: "dentro",
       }),
 
       RegistroParqueaderoModel.countDocuments({
+        estado: { $ne: "anulado" },
         fechaHoraEntrada: {
-          $gte: inicioDia,
-          $lte: finDia,
+          $gte: rango.inicioUtc,
+          $lte: rango.finUtc,
         },
       }),
 
-      RegistroParqueaderoModel.countDocuments({
-        estado: "retirado",
+      RegistroParqueaderoModel.countDocuments(crearFiltroSalidas(rango)),
 
-        fechaHoraSalida: {
-          $gte: inicioDia,
-          $lte: finDia,
-        },
-      }),
-
-      RegistroParqueaderoModel.aggregate([
-        {
-          $match: {
-            estado: "retirado",
-
-            fechaHoraSalida: {
-              $gte: inicioDia,
-              $lte: finDia,
-            },
-          },
-        },
-
-        {
-          $group: {
-            _id: null,
-
-            total: {
-              $sum: {
-                $ifNull: ["$valorCobrado", 0],
-              },
-            },
-          },
-        },
-      ]),
-    ],
-  );
+      calcularRecaudo(rango),
+    ]);
 
   return {
-    fecha: ahora.toISODate(),
+    fecha: rango.inicioLocal.toISODate(),
 
     vehiculosDentro,
 
@@ -318,6 +376,65 @@ export async function obtenerResumenDelDia() {
 
     salidasHoy,
 
-    recaudoHoy: recaudo[0]?.total ?? 0,
+    recaudoHoy,
+  };
+}
+
+const CANTIDAD_ULTIMOS_MOVIMIENTOS = 5;
+
+/**
+ * Resumen del día más los datos exclusivos del administrador.
+ */
+export async function obtenerResumenAdministrador() {
+  const rangoDia = obtenerRangoDiaActual();
+  const rangoMes = obtenerRangoMes();
+
+  const [resumenDia, recaudoMes, anuladosHoy, ultimos] = await Promise.all([
+    obtenerResumenDelDia(),
+
+    calcularRecaudo(rangoMes),
+
+    RegistroParqueaderoModel.countDocuments({
+      estado: "anulado",
+      fechaAnulacion: {
+        $gte: rangoDia.inicioUtc,
+        $lte: rangoDia.finUtc,
+      },
+    }),
+
+    RegistroParqueaderoModel.find()
+      .sort({ updatedAt: -1 })
+      .limit(CANTIDAD_ULTIMOS_MOVIMIENTOS)
+      .lean(),
+  ]);
+
+  const ultimosMovimientos = ultimos.map((registro) => {
+    const movimiento =
+      registro.estado === "dentro"
+        ? "entrada"
+        : registro.estado === "retirado"
+          ? "salida"
+          : "anulacion";
+
+    const fecha =
+      movimiento === "entrada"
+        ? registro.fechaHoraEntrada
+        : movimiento === "salida"
+          ? registro.fechaHoraSalida
+          : registro.updatedAt;
+
+    return {
+      ...conTipoMostrado(registro),
+      movimiento,
+      fechaMovimiento: fecha,
+    };
+  });
+
+  return {
+    ...resumenDia,
+    mes: rangoMes.inicioLocal.toFormat("yyyy-MM"),
+    recaudoMes,
+    anuladosHoy,
+    ultimosMovimientos,
   };
 }

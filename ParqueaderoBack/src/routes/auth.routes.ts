@@ -1,12 +1,9 @@
 import { Router } from "express";
 import { rateLimit } from "express-rate-limit";
 
-import { login, logout } from "../controllers/auth.controller.js";
+import { login, logout, me } from "../controllers/auth.controller.js";
 
-import {
-  verificarAutenticacion,
-  type AuthRequest,
-} from "../middlewares/auth.middleware.js";
+import { verificarAutenticacion } from "../middlewares/auth.middleware.js";
 
 const router = Router();
 
@@ -26,11 +23,6 @@ router.post("/login", loginLimiter, login);
 
 router.post("/logout", logout);
 
-router.get("/me", verificarAutenticacion, (request: AuthRequest, response) => {
-  response.status(200).json({
-    ok: true,
-    usuario: request.usuario,
-  });
-});
+router.get("/me", verificarAutenticacion, me);
 
 export default router;
