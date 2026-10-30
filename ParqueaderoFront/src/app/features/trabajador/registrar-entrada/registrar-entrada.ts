@@ -8,6 +8,8 @@ import { finalize } from 'rxjs';
 
 import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
+import { TiposVehiculoService } from '../../../core/services/tipos-vehiculo.service';
+
 import { TipoVehiculo } from '../../../core/models/parqueadero.model';
 
 import {
@@ -52,6 +54,8 @@ export class RegistrarEntrada implements OnInit {
     private readonly fb: FormBuilder,
 
     private readonly parqueaderoService: ParqueaderoService,
+
+    private readonly tiposVehiculoService: TiposVehiculoService,
   ) {
     this.formulario = this.fb.nonNullable.group({
       placa: ['', [Validators.required, placaValidator()]],
@@ -73,8 +77,8 @@ export class RegistrarEntrada implements OnInit {
   private cargarTiposVehiculo(): void {
     this.cargandoTipos.set(true);
 
-    this.parqueaderoService
-      .obtenerTiposVehiculo()
+    this.tiposVehiculoService
+      .obtenerActivos()
       .pipe(
         finalize(() => {
           this.cargandoTipos.set(false);

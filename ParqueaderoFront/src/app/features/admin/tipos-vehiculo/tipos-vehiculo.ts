@@ -10,7 +10,7 @@ import {
 
 import { finalize } from 'rxjs';
 
-import { AdminService } from '../../../core/services/admin.service';
+import { TiposVehiculoService } from '../../../core/services/tipos-vehiculo.service';
 
 import { TipoVehiculoAdmin } from '../../../core/models/admin.model';
 
@@ -51,7 +51,7 @@ function mensajeErrorTipo(error: unknown, porDefecto: string): string {
   templateUrl: './tipos-vehiculo.html',
 })
 export class TiposVehiculo implements OnInit {
-  private readonly adminService = inject(AdminService);
+  private readonly tiposVehiculoService = inject(TiposVehiculoService);
 
   private readonly fb = inject(FormBuilder);
 
@@ -96,8 +96,8 @@ export class TiposVehiculo implements OnInit {
 
     this.mensajeError.set('');
 
-    this.adminService
-      .obtenerTiposVehiculo()
+    this.tiposVehiculoService
+      .obtenerTodos()
       .pipe(
         finalize(() => {
           this.cargando.set(false);
@@ -143,8 +143,8 @@ export class TiposVehiculo implements OnInit {
 
     this.creando.set(true);
 
-    this.adminService
-      .crearTipoVehiculo(nombre)
+    this.tiposVehiculoService
+      .crear(nombre)
       .pipe(
         finalize(() => {
           this.creando.set(false);
@@ -215,8 +215,8 @@ export class TiposVehiculo implements OnInit {
 
     this.procesandoId.set(tipo._id);
 
-    this.adminService
-      .actualizarTipoVehiculo(tipo._id, { nombre })
+    this.tiposVehiculoService
+      .actualizar(tipo._id, { nombre })
       .pipe(
         finalize(() => {
           this.procesandoId.set(null);
@@ -249,8 +249,8 @@ export class TiposVehiculo implements OnInit {
 
     this.procesandoId.set(tipo._id);
 
-    this.adminService
-      .actualizarTipoVehiculo(tipo._id, { activo: !tipo.activo })
+    this.tiposVehiculoService
+      .actualizar(tipo._id, { activo: !tipo.activo })
       .pipe(
         finalize(() => {
           this.procesandoId.set(null);

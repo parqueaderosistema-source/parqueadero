@@ -1,7 +1,6 @@
 import { Routes } from '@angular/router';
 
-import { adminGuard } from './core/guards/admin.guard';
-import { trabajadorGuard } from './core/guards/trabajador.guard';
+import { adminGuard, trabajadorGuard } from './core/guards/rol.guard';
 import { RUTAS_OPERACION } from './features/operacion/operacion.routes';
 
 export const routes: Routes = [
