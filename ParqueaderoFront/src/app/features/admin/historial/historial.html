@@ -274,4 +274,22 @@
 
   </div>
 
+
+  <!-- DESCARGAR Y ELIMINAR -->
+
+  @if (periodo()) {
+
+    <div class="mt-6">
+
+      <app-gestion-mes
+        [periodo]="periodo()"
+        [cantidadRegistros]="historial()?.totalRegistros ?? 0"
+        [totalRecaudado]="historial()?.totalRecaudado ?? 0"
+        (eliminado)="recargarTodo()"
+      />
+
+    </div>
+
+  }
+
 </section>

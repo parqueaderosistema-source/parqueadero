@@ -31,6 +31,8 @@ import { formatearDinero, formatearPeriodo } from '../../../core/utils/formato';
 
 import { Paginacion } from '../../../shared/components/paginacion/paginacion';
 
+import { GestionMes } from './gestion-mes/gestion-mes';
+
 const REGISTROS_POR_PAGINA = 25;
 
 /**
@@ -49,7 +51,7 @@ function periodoActual(): string {
 
   standalone: true,
 
-  imports: [DatePipe, Paginacion],
+  imports: [DatePipe, Paginacion, GestionMes],
 
   templateUrl: './historial.html',
 })
