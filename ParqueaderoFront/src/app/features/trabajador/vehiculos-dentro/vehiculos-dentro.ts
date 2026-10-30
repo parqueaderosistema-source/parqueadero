@@ -10,6 +10,8 @@ import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
 import { RegistroParqueadero } from '../../../core/models/parqueadero.model';
 
+import { obtenerMensajeError } from '../../../core/utils/http-error';
+
 @Component({
   selector: 'app-vehiculos-dentro',
 
@@ -67,7 +69,7 @@ export class VehiculosDentro implements OnInit {
 
         error: (error) => {
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible cargar los vehículos.',
+            obtenerMensajeError(error, 'No fue posible cargar los vehículos.'),
           );
         },
       });
