@@ -25,6 +25,13 @@ export const registrarEntradaSchema = z.object({
     .trim()
     .min(1, "Debe seleccionar un tipo de vehículo"),
 
+  // Vacío, nulo o solo espacios se convierte en null.
+  // Si es obligatorio o no permitido lo decide el servicio según el tipo.
+  tipoVehiculoPersonalizado: z
+    .string({ message: "El tipo personalizado debe ser texto" })
+    .nullish()
+    .transform((valor) => valor?.trim() || null),
+
   tiempoEstimado: z
     .string()
     .trim()

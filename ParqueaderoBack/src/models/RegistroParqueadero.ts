@@ -22,6 +22,15 @@ const registroParqueaderoSchema = new Schema(
       trim: true,
     },
 
+    // Texto escrito por el trabajador cuando el tipo
+    // permite personalizado (ej. «Otro» → "Triciclo").
+    tipoVehiculoPersonalizado: {
+      type: String,
+      trim: true,
+      maxlength: 40,
+      default: null,
+    },
+
     fechaHoraEntrada: {
       type: Date,
       required: true,
