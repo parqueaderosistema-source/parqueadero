@@ -18,9 +18,70 @@ function esErrorDuplicado(error: unknown): boolean {
   );
 }
 
+/**
+ * Agrega tipoMostrado: el tipo personalizado si existe,
+ * o el nombre del tipo guardado al momento de la entrada.
+ */
+function conTipoMostrado<
+  T extends {
+    tipoVehiculoNombre: string;
+    tipoVehiculoPersonalizado?: string | null;
+  },
+>(registro: T) {
+  return {
+    ...registro,
+    tipoVehiculoPersonalizado: registro.tipoVehiculoPersonalizado ?? null,
+    tipoMostrado:
+      registro.tipoVehiculoPersonalizado || registro.tipoVehiculoNombre,
+  };
+}
+
+const LARGO_MINIMO_PERSONALIZADO = 2;
+const LARGO_MAXIMO_PERSONALIZADO = 40;
+
+/**
+ * Valida el tipo personalizado según el flag del tipo de vehículo.
+ * Devuelve el valor a guardar (texto o null).
+ */
+function validarTipoPersonalizado(
+  tipo: { nombre: string; permitePersonalizado?: boolean | null },
+  personalizado: string | null,
+): string | null {
+  if (!tipo.permitePersonalizado) {
+    if (personalizado) {
+      throw new HttpError(
+        400,
+        `El tipo «${tipo.nombre}» no permite especificar un tipo personalizado`,
+      );
+    }
+
+    return null;
+  }
+
+  if (!personalizado) {
+    throw new HttpError(
+      400,
+      `Debe escribir el tipo de vehículo cuando selecciona «${tipo.nombre}»`,
+    );
+  }
+
+  if (
+    personalizado.length < LARGO_MINIMO_PERSONALIZADO ||
+    personalizado.length > LARGO_MAXIMO_PERSONALIZADO
+  ) {
+    throw new HttpError(
+      400,
+      `El tipo de vehículo debe tener entre ${LARGO_MINIMO_PERSONALIZADO} y ${LARGO_MAXIMO_PERSONALIZADO} caracteres`,
+    );
+  }
+
+  return personalizado;
+}
+
 interface EntradaDatos {
   placa: string;
   tipoVehiculoId: string;
+  tipoVehiculoPersonalizado: string | null;
   tiempoEstimado: string;
   observacion: string;
   usuarioId: string;
@@ -44,6 +105,11 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
     throw new HttpError(400, "El tipo de vehículo no existe o está desactivado");
   }
 
+  const tipoVehiculoPersonalizado = validarTipoPersonalizado(
+    tipoVehiculo,
+    datos.tipoVehiculoPersonalizado,
+  );
+
   const vehiculoDentro = await RegistroParqueaderoModel.findOne({
     placa: placaNormalizada,
     estado: "dentro",
@@ -61,6 +127,7 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
     placa: placaNormalizada,
     tipoVehiculo: tipoVehiculo._id,
     tipoVehiculoNombre: tipoVehiculo.nombre,
+    tipoVehiculoPersonalizado,
     fechaHoraEntrada: new Date(),
     tiempoEstimado: datos.tiempoEstimado,
     fechaHoraSalida: null,
@@ -85,20 +152,23 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
       registroId: registro._id,
       placa: placaNormalizada,
       tipoVehiculo: tipoVehiculo.nombre,
+      tipoVehiculoPersonalizado,
     },
   });
 
-  return registro;
+  return conTipoMostrado(registro.toObject());
 }
 
 export async function obtenerVehiculosDentro() {
-  return RegistroParqueaderoModel.find({
+  const registros = await RegistroParqueaderoModel.find({
     estado: "dentro",
   })
     .sort({
       fechaHoraEntrada: -1,
     })
     .lean();
+
+  return registros.map(conTipoMostrado);
 }
 interface SalidaDatos {
   placa: string;
@@ -136,7 +206,7 @@ export async function buscarVehiculoDentroPorPlaca(placa: string) {
   const minutos = minutosTotales % 60;
 
   return {
-    ...registro,
+    ...conTipoMostrado(registro),
     tiempoTranscurrido: {
       dias,
       horas,
@@ -215,7 +285,7 @@ export async function registrarSalidaVehiculo(datos: SalidaDatos) {
     },
   });
 
-  return registro;
+  return conTipoMostrado(registro.toObject());
 }
 export async function obtenerRecaudoDelDia() {
   const timezone = process.env.APP_TIMEZONE ?? "America/Bogota";
@@ -248,7 +318,7 @@ export async function obtenerRecaudoDelDia() {
     fecha: ahora.toISODate(),
     totalVehiculos: registros.length,
     totalRecaudado,
-    registros,
+    registros: registros.map(conTipoMostrado),
   };
 }
 export async function obtenerResumenDelDia() {

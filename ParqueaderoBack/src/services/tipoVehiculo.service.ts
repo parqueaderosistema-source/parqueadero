@@ -1,15 +1,32 @@
 import { TipoVehiculoModel } from "../models/TipoVehiculo.js";
 
+/**
+ * .lean() no aplica los defaults del esquema: los tipos guardados
+ * antes de existir permitePersonalizado no traen el campo.
+ */
+function conPermitePersonalizado<T extends { permitePersonalizado?: boolean | null }>(
+  tipo: T,
+) {
+  return {
+    ...tipo,
+    permitePersonalizado: tipo.permitePersonalizado ?? false,
+  };
+}
+
 export async function obtenerTiposVehiculo() {
-  return TipoVehiculoModel.find().sort({ nombre: 1 }).lean();
+  const tipos = await TipoVehiculoModel.find().sort({ nombre: 1 }).lean();
+
+  return tipos.map(conPermitePersonalizado);
 }
 
 export async function obtenerTiposVehiculoActivos() {
-  return TipoVehiculoModel.find({
+  const tipos = await TipoVehiculoModel.find({
     activo: true,
   })
     .sort({ nombre: 1 })
     .lean();
+
+  return tipos.map(conPermitePersonalizado);
 }
 
 export async function crearTipoVehiculo(nombre: string) {
