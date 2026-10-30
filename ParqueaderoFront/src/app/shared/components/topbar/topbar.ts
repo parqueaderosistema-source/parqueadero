@@ -1,8 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
-
-import { Router } from '@angular/router';
-
-import { AuthService } from '../../../core/services/auth.service';
+import { Component, input, output } from '@angular/core';
 
 @Component({
   selector: 'app-topbar',
@@ -14,17 +10,17 @@ import { AuthService } from '../../../core/services/auth.service';
   styleUrl: './topbar.css',
 })
 export class Topbar {
-  private readonly auth = inject(AuthService);
+  readonly titulo = input('Panel de trabajo');
 
-  private readonly router = inject(Router);
+  readonly nombreUsuario = input('');
 
-  readonly usuario = computed(() => this.auth.usuario());
+  readonly correoUsuario = input('');
 
-  cerrarSesion(): void {
-    this.auth.logout().subscribe({
-      next: () => {
-        void this.router.navigate(['/login']);
-      },
-    });
-  }
+  readonly rolUsuario = input('');
+
+  readonly cerrandoSesion = input(false);
+
+  readonly abrirMenu = output<void>();
+
+  readonly cerrarSesion = output<void>();
 }

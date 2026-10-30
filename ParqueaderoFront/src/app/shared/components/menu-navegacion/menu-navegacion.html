@@ -1,0 +1,51 @@
+<nav class="space-y-6">
+
+  @for (grupo of grupos(); track $index) {
+
+    <div>
+
+      @if (grupo.titulo) {
+
+        <p
+          class="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500"
+        >
+          {{ grupo.titulo }}
+        </p>
+
+      }
+
+      <div class="space-y-1">
+
+        @for (enlace of grupo.enlaces; track enlace.ruta) {
+
+          <!--
+            Las clases de activo e inactivo son excluyentes:
+            si conviven (p. ej. text-slate-300 y text-slate-950)
+            gana la que Tailwind genere después y el enlace se ve gris.
+          -->
+          <a
+            [routerLink]="enlace.ruta"
+            routerLinkActive
+            #rla="routerLinkActive"
+            [routerLinkActiveOptions]="{ exact: enlace.exacto ?? false }"
+            [attr.aria-current]="rla.isActive ? 'page' : null"
+            (click)="navegar.emit()"
+            class="flex items-center rounded-xl px-4 py-3 text-sm font-medium transition"
+            [class]="
+              rla.isActive
+                ? 'bg-emerald-500 font-semibold text-slate-950'
+                : 'text-slate-300 hover:bg-slate-900 hover:text-white'
+            "
+          >
+            {{ enlace.etiqueta }}
+          </a>
+
+        }
+
+      </div>
+
+    </div>
+
+  }
+
+</nav>

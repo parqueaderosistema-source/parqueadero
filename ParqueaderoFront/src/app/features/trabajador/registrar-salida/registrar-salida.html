@@ -73,7 +73,7 @@
         maxlength="30"
         autocomplete="off"
         placeholder="Ej. ABC456"
-        class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-5 py-4 text-lg font-bold uppercase tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+        class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-5 py-4 text-lg font-bold tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
       />
 
       <button
@@ -115,6 +115,147 @@
     }
 
   </form>
+
+
+  <!-- VEHÍCULOS DENTRO (selección con un clic) -->
+
+  @if (!registro()) {
+
+    <div
+      class="mt-6 overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+    >
+
+      <div
+        class="flex items-center justify-between gap-4 border-b border-slate-100 px-6 py-4"
+      >
+
+        <div>
+
+          <h2
+            class="font-bold text-slate-950"
+          >
+            Vehículos dentro
+          </h2>
+
+          <p
+            class="mt-1 text-sm text-slate-500"
+          >
+            Selecciona uno para registrar su salida.
+          </p>
+
+        </div>
+
+        <button
+          type="button"
+          (click)="cargarVehiculosDentro()"
+          [disabled]="cargandoLista()"
+          class="shrink-0 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          @if (cargandoLista()) {
+            Actualizando...
+          } @else {
+            Actualizar
+          }
+        </button>
+
+      </div>
+
+
+      @if (errorLista()) {
+
+        <div
+          class="m-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        >
+          {{ errorLista() }}
+        </div>
+
+      } @else if (cargandoLista() && vehiculosDentro().length === 0) {
+
+        <p
+          class="p-8 text-center text-sm text-slate-500"
+        >
+          Cargando vehículos...
+        </p>
+
+      } @else if (vehiculosFiltrados().length === 0) {
+
+        <p
+          class="p-8 text-center text-sm text-slate-500"
+        >
+          @if (vehiculosDentro().length === 0) {
+            No hay vehículos dentro del parqueadero.
+          } @else {
+            Ningún vehículo dentro coincide con esa placa.
+          }
+        </p>
+
+      } @else {
+
+        <ul
+          class="max-h-96 divide-y divide-slate-100 overflow-y-auto"
+        >
+
+          @for (vehiculo of vehiculosFiltrados(); track vehiculo._id) {
+
+            <li>
+
+              <button
+                type="button"
+                (click)="seleccionarVehiculo(vehiculo.placa)"
+                [disabled]="ocupado()"
+                class="flex w-full items-center justify-between gap-4 px-6 py-4 text-left transition hover:bg-emerald-50 focus:bg-emerald-50 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+              >
+
+                <div class="min-w-0">
+
+                  <p
+                    class="font-bold tracking-wide text-slate-950"
+                  >
+                    {{ vehiculo.placa }}
+                  </p>
+
+                  <p
+                    class="mt-0.5 truncate text-sm text-slate-500"
+                  >
+                    {{ vehiculo.tipoVehiculoNombre }}
+                    · entró {{ vehiculo.fechaHoraEntrada | date:'dd/MM h:mm a' }}
+                  </p>
+
+                </div>
+
+                <div class="shrink-0 text-right">
+
+                  <p
+                    class="text-sm font-semibold text-slate-900"
+                  >
+                    {{ permanencia(vehiculo.fechaHoraEntrada) }}
+                  </p>
+
+                  @if (requiereRevision(vehiculo.fechaHoraEntrada)) {
+
+                    <span
+                      class="mt-1 inline-block rounded-full bg-amber-100 px-2.5 py-0.5 text-xs font-semibold text-amber-800"
+                    >
+                      Revisar
+                    </span>
+
+                  }
+
+                </div>
+
+              </button>
+
+            </li>
+
+          }
+
+        </ul>
+
+      }
+
+    </div>
+
+  }
 
 
   <!-- VEHÍCULO ENCONTRADO -->

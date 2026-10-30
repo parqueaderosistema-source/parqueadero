@@ -19,57 +19,18 @@
       </p>
 
       <p class="text-xs text-slate-400">
-        Panel operativo
+        {{ subtitulo() }}
       </p>
 
     </div>
 
   </div>
 
-  <nav class="flex-1 space-y-2 p-4">
+  <div class="flex-1 overflow-y-auto p-4">
 
-    <a
-      routerLink="/trabajador"
-      routerLinkActive="bg-emerald-500 text-slate-950"
-      [routerLinkActiveOptions]="{ exact: true }"
-      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-    >
-      Inicio
-    </a>
+    <app-menu-navegacion [grupos]="grupos()" />
 
-    <a
-      routerLink="/trabajador/entrada"
-      routerLinkActive="bg-emerald-500 text-slate-950"
-      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-    >
-      Registrar entrada
-    </a>
-
-    <a
-      routerLink="/trabajador/salida"
-      routerLinkActive="bg-emerald-500 text-slate-950"
-      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-    >
-      Registrar salida
-    </a>
-
-    <a
-      routerLink="/trabajador/vehiculos"
-      routerLinkActive="bg-emerald-500 text-slate-950"
-      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-    >
-      Vehículos dentro
-    </a>
-
-    <a
-      routerLink="/trabajador/caja"
-      routerLinkActive="bg-emerald-500 text-slate-950"
-      class="flex items-center rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition hover:bg-slate-900 hover:text-white"
-    >
-      Caja diaria
-    </a>
-
-  </nav>
+  </div>
 
   <div
     class="border-t border-slate-800 p-4"
@@ -79,12 +40,12 @@
       class="rounded-xl bg-slate-900 p-4"
     >
 
-      <p class="text-sm font-semibold text-white">
-        Trabajador
+      <p class="truncate text-sm font-semibold text-white">
+        {{ nombreUsuario() }}
       </p>
 
       <p class="mt-1 text-xs text-slate-400">
-        Sesión activa
+        {{ rolUsuario() }}
       </p>
 
     </div>

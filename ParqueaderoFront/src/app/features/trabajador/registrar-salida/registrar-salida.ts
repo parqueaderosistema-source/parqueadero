@@ -1,4 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, computed, signal } from '@angular/core';
+
+import { toSignal } from '@angular/core/rxjs-interop';
 
 import { CommonModule } from '@angular/common';
 
@@ -8,7 +10,15 @@ import { finalize } from 'rxjs';
 
 import { ParqueaderoService } from '../../../core/services/parqueadero.service';
 
-import { RegistroConTiempo } from '../../../core/models/parqueadero.model';
+import {
+  RegistroConTiempo,
+  RegistroParqueadero,
+} from '../../../core/models/parqueadero.model';
+
+import {
+  formatearPermanencia,
+  superaLimitePermanencia,
+} from '../../../core/utils/tiempo';
 
 import {
   obtenerErroresDeCampo,
@@ -33,8 +43,17 @@ import {
 
   styleUrl: './registrar-salida.css',
 })
-export class RegistrarSalida {
+export class RegistrarSalida implements OnInit {
   readonly buscando = signal(false);
+
+  /**
+   * Lista de vehículos dentro para seleccionarlos con un clic.
+   */
+  readonly vehiculosDentro = signal<RegistroParqueadero[]>([]);
+
+  readonly cargandoLista = signal(true);
+
+  readonly errorLista = signal('');
 
   readonly guardando = signal(false);
 
@@ -52,6 +71,23 @@ export class RegistrarSalida {
   readonly formularioBusqueda;
 
   readonly formularioSalida;
+
+  private readonly placaEscrita;
+
+  /**
+   * La lista se filtra con lo que se escribe en el buscador.
+   */
+  readonly vehiculosFiltrados = computed(() => {
+    const texto = normalizarPlaca(this.placaEscrita() ?? '');
+
+    if (!texto) {
+      return this.vehiculosDentro();
+    }
+
+    return this.vehiculosDentro().filter((vehiculo) =>
+      vehiculo.placa.includes(texto),
+    );
+  });
 
   constructor(
     private readonly fb: FormBuilder,
@@ -72,6 +108,61 @@ export class RegistrarSalida {
 
       observacion: ['', Validators.maxLength(500)],
     });
+
+    this.placaEscrita = toSignal(
+      this.formularioBusqueda.controls.placa.valueChanges,
+      { initialValue: '' },
+    );
+  }
+
+  ngOnInit(): void {
+    this.cargarVehiculosDentro();
+  }
+
+  cargarVehiculosDentro(): void {
+    this.cargandoLista.set(true);
+
+    this.errorLista.set('');
+
+    this.parqueaderoService
+      .obtenerVehiculosDentro()
+      .pipe(
+        finalize(() => {
+          this.cargandoLista.set(false);
+        }),
+      )
+      .subscribe({
+        next: (respuesta) => {
+          this.vehiculosDentro.set(respuesta.registros ?? []);
+        },
+
+        error: (error) => {
+          this.errorLista.set(
+            obtenerMensajeError(
+              error,
+              'No fue posible cargar los vehículos dentro.',
+            ),
+          );
+        },
+      });
+  }
+
+  seleccionarVehiculo(placa: string): void {
+    if (this.ocupado()) {
+      return;
+    }
+
+    this.formularioBusqueda.controls.placa.setValue(placa);
+
+    this.buscar();
+  }
+
+  permanencia(fechaEntrada: string): string {
+    return formatearPermanencia(fechaEntrada);
+  }
+
+  requiereRevision(fechaEntrada: string): boolean {
+    return superaLimitePermanencia(fechaEntrada);
   }
 
   /**
@@ -178,6 +269,8 @@ export class RegistrarSalida {
           });
 
           this.reiniciarCobro();
+
+          this.cargarVehiculosDentro();
         },
 
         error: (error) => {
@@ -205,6 +298,8 @@ export class RegistrarSalida {
 
           if (estado === 404 || estado === 409) {
             this.registro.set(null);
+
+            this.cargarVehiculosDentro();
           }
         },
       });
