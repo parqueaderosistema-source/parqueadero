@@ -66,4 +66,11 @@ export class AuthService {
   estaAutenticado(): boolean {
     return this.usuarioSignal() !== null;
   }
+
+  /**
+   * Olvida la sesión local (p. ej. cuando el servidor responde 401).
+   */
+  limpiarSesion(): void {
+    this.usuarioSignal.set(null);
+  }
 }

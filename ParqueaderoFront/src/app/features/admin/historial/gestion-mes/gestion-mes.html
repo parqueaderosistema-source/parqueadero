@@ -1,0 +1,206 @@
+<div
+  class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm"
+>
+
+  <div class="border-b border-slate-100 px-6 py-5">
+
+    <h2 class="font-bold text-slate-950">
+      Descargar y eliminar mes
+    </h2>
+
+    <p class="mt-1 text-sm text-slate-500">
+      Descarga el respaldo en Excel y libera espacio eliminando el historial de
+      <span class="font-semibold capitalize text-slate-700">{{ formatearPeriodo(periodo()) }}</span>.
+    </p>
+
+  </div>
+
+
+  <div class="space-y-6 p-6">
+
+    @if (errorVistaPrevia()) {
+
+      <div
+        class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        role="alert"
+      >
+        {{ errorVistaPrevia() }}
+      </div>
+
+    }
+
+
+    <!-- VISTA PREVIA -->
+
+    <div class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+
+      <div class="rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Se eliminarían</p>
+        <p class="mt-1 text-2xl font-bold text-slate-950">
+          {{ preparando() ? '—' : (vistaPrevia()?.cantidadAEliminar ?? '—') }}
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Retirados / anulados</p>
+        <p class="mt-1 text-2xl font-bold text-slate-950">
+          @if (vistaPrevia(); as datos) {
+            {{ datos.retirados }} / {{ datos.anulados }}
+          } @else {
+            —
+          }
+        </p>
+      </div>
+
+      <div class="min-w-0 rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Recaudo</p>
+        <p class="mt-1 break-words text-2xl font-bold text-slate-950">
+          @if (vistaPrevia(); as datos) {
+            {{ formatearDinero(datos.recaudo) }}
+          } @else {
+            —
+          }
+        </p>
+      </div>
+
+      <div class="rounded-2xl bg-slate-50 p-4">
+        <p class="text-xs font-medium text-slate-500">Dentro (se conservan)</p>
+        <p class="mt-1 text-2xl font-bold text-slate-950">
+          {{ vistaPrevia()?.dentroConservados ?? '—' }}
+        </p>
+      </div>
+
+    </div>
+
+
+    @if (mensajeExito()) {
+
+      <div
+        class="rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-sm font-semibold text-emerald-800"
+        role="status"
+      >
+        {{ mensajeExito() }}
+      </div>
+
+    }
+
+    @if (mensajeError()) {
+
+      <div
+        class="rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm font-medium text-red-700"
+        role="alert"
+      >
+        {{ mensajeError() }}
+      </div>
+
+    }
+
+
+    <!-- DESCARGA -->
+
+    <button
+      type="button"
+      (click)="descargar()"
+      [disabled]="ocupado()"
+      class="w-full rounded-xl bg-slate-950 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+    >
+      @if (descargando() && !eliminando()) {
+        Descargando...
+      } @else {
+        Descargar Excel
+      }
+    </button>
+
+
+    <!-- ELIMINACIÓN -->
+
+    @if (preparando()) {
+
+      <p class="text-sm text-slate-500">
+        Verificando si el mes se puede eliminar...
+      </p>
+
+    } @else if (vistaPrevia(); as datos) {
+
+      @if (!datos.eliminable) {
+
+        <div
+          class="rounded-2xl border border-amber-200 bg-amber-50 px-5 py-4 text-sm font-medium text-amber-800"
+        >
+          {{ datos.motivoNoEliminable || 'Este mes no se puede eliminar.' }}
+        </div>
+
+      } @else {
+
+        <div class="rounded-2xl border border-red-200 bg-red-50/60 p-5">
+
+          <p class="font-bold text-red-800">
+            Zona de eliminación
+          </p>
+
+          <p class="mt-1 text-sm text-red-700">
+            Se borrarán definitivamente {{ datos.cantidadAEliminar }}
+            {{ datos.cantidadAEliminar === 1 ? 'registro' : 'registros' }}
+            ({{ formatearDinero(datos.recaudo) }}). Esta acción no se puede deshacer.
+          </p>
+
+          <label
+            for="confirmacionEliminar"
+            class="mt-4 block text-sm font-semibold text-slate-700"
+          >
+            Para confirmar escribe
+            <span class="select-all rounded bg-white px-1.5 py-0.5 font-mono text-red-700">{{ datos.confirmacionRequerida }}</span>
+          </label>
+
+          <input
+            id="confirmacionEliminar"
+            type="text"
+            [value]="confirmacion()"
+            (input)="actualizarConfirmacion($any($event.target).value)"
+            [disabled]="ocupado()"
+            autocomplete="off"
+            spellcheck="false"
+            class="mt-2 w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono text-slate-900 outline-none transition focus:border-red-500 focus:ring-4 focus:ring-red-500/10 disabled:opacity-60"
+          />
+
+          @if (confirmacion() && !confirmacionCorrecta()) {
+            <p class="mt-2 text-sm text-red-600">
+              El texto no coincide.
+            </p>
+          }
+
+          <div class="mt-4 flex flex-col gap-3 sm:flex-row">
+
+            <button
+              type="button"
+              (click)="descargarYEliminar()"
+              [disabled]="ocupado() || !confirmacionCorrecta()"
+              class="rounded-xl bg-red-600 px-6 py-3 text-sm font-bold text-white transition hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              @if (descargando() || eliminando()) {
+                Procesando...
+              } @else {
+                Descargar y eliminar
+              }
+            </button>
+
+            <button
+              type="button"
+              (click)="eliminarSinDescargar()"
+              [disabled]="ocupado() || !confirmacionCorrecta()"
+              class="rounded-xl border border-red-300 bg-white px-6 py-3 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Eliminar sin descargar
+            </button>
+
+          </div>
+
+        </div>
+
+      }
+
+    }
+
+  </div>
+
+</div>

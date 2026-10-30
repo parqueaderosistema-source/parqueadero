@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 
 import { adminGuard } from './core/guards/admin.guard';
 import { trabajadorGuard } from './core/guards/trabajador.guard';
+import { RUTAS_OPERACION } from './features/operacion/operacion.routes';
 
 export const routes: Routes = [
   {
@@ -13,10 +14,39 @@ export const routes: Routes = [
   {
     path: 'admin',
     canActivate: [adminGuard],
+
     loadComponent: () =>
-      import('./features/admin/dashboard-admin/dashboard-admin').then(
-        (m) => m.DashboardAdmin,
+      import('./features/admin/layout-admin/layout-admin').then(
+        (m) => m.LayoutAdmin,
       ),
+
+    children: [
+      {
+        path: '',
+        loadComponent: () =>
+          import('./features/admin/dashboard-admin/dashboard-admin').then(
+            (m) => m.DashboardAdmin,
+          ),
+      },
+
+      ...RUTAS_OPERACION,
+
+      {
+        path: 'historial',
+        loadComponent: () =>
+          import('./features/admin/historial/historial').then(
+            (m) => m.Historial,
+          ),
+      },
+
+      {
+        path: 'tipos-vehiculo',
+        loadComponent: () =>
+          import('./features/admin/tipos-vehiculo/tipos-vehiculo').then(
+            (m) => m.TiposVehiculo,
+          ),
+      },
+    ],
   },
 
   {
@@ -37,37 +67,7 @@ export const routes: Routes = [
           ),
       },
 
-      {
-        path: 'entrada',
-        loadComponent: () =>
-          import('./features/trabajador/registrar-entrada/registrar-entrada').then(
-            (m) => m.RegistrarEntrada,
-          ),
-      },
-
-      {
-        path: 'salida',
-        loadComponent: () =>
-          import('./features/trabajador/registrar-salida/registrar-salida').then(
-            (m) => m.RegistrarSalida,
-          ),
-      },
-
-      {
-        path: 'vehiculos',
-        loadComponent: () =>
-          import('./features/trabajador/vehiculos-dentro/vehiculos-dentro').then(
-            (m) => m.VehiculosDentro,
-          ),
-      },
-
-      {
-        path: 'caja',
-        loadComponent: () =>
-          import('./features/trabajador/caja-diaria/caja-diaria').then(
-            (m) => m.CajaDiaria,
-          ),
-      },
+      ...RUTAS_OPERACION,
     ],
   },
 

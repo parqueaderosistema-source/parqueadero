@@ -17,6 +17,10 @@ export function obtenerMensajeError(
     return 'No hay conexión con el servidor. Verifica que esté en funcionamiento.';
   }
 
+  if (error.status === 403) {
+    return 'No tienes permiso para realizar esta acción.';
+  }
+
   const mensaje = error.error?.message;
 
   if (typeof mensaje === 'string' && mensaje.trim()) {
