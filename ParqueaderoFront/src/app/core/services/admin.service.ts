@@ -2,7 +2,11 @@ import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-import { ResumenAdminResponse } from '../models/admin.model';
+import {
+  HistorialMesResponse,
+  MesesHistorialResponse,
+  ResumenAdminResponse,
+} from '../models/admin.model';
 
 /**
  * Endpoints exclusivos del administrador.
@@ -19,6 +23,28 @@ export class AdminService {
   obtenerResumenAdmin(): Observable<ResumenAdminResponse> {
     return this.http.get<ResumenAdminResponse>(
       `${this.apiUrl}/registros/resumen/admin`,
+    );
+  }
+
+  obtenerMesesHistorial(): Observable<MesesHistorialResponse> {
+    return this.http.get<MesesHistorialResponse>(
+      `${this.apiUrl}/historial/meses`,
+    );
+  }
+
+  obtenerHistorialMes(
+    periodo: string,
+    pagina: number,
+    limite: number,
+  ): Observable<HistorialMesResponse> {
+    return this.http.get<HistorialMesResponse>(
+      `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}`,
+      {
+        params: {
+          pagina,
+          limite,
+        },
+      },
     );
   }
 }

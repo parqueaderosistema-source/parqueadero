@@ -18,6 +18,11 @@ const MENU_ADMIN: GrupoMenu[] = [
       { etiqueta: 'Caja diaria', ruta: '/admin/caja' },
     ],
   },
+
+  {
+    titulo: 'Administración',
+    enlaces: [{ etiqueta: 'Historial', ruta: '/admin/historial' }],
+  },
 ];
 
 @Component({

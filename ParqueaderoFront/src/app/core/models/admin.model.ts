@@ -18,3 +18,38 @@ export interface ResumenAdminResponse extends ResumenDiaResponse {
   anuladosHoy: number;
   ultimosMovimientos: MovimientoReciente[];
 }
+
+/**
+ * GET /api/historial/meses
+ * Solo meses con vehículos retirados.
+ */
+export interface MesHistorial {
+  periodo: string;
+  nombreMes: string;
+  cantidadRegistros: number;
+  totalRecaudado: number;
+}
+
+export interface MesesHistorialResponse {
+  ok: boolean;
+  meses: MesHistorial[];
+}
+
+/**
+ * GET /api/historial/mes/:periodo?pagina=&limite=
+ * Registros retirados del mes, ordenados por salida descendente.
+ */
+export interface RegistroHistorial extends RegistroParqueadero {
+  tipoVehiculoPersonalizado?: string | null;
+}
+
+export interface HistorialMesResponse {
+  ok: boolean;
+  periodo: string;
+  pagina: number;
+  limite: number;
+  totalRegistros: number;
+  totalPaginas: number;
+  totalRecaudado: number;
+  registros: RegistroHistorial[];
+}

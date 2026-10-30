@@ -30,6 +30,14 @@ export const routes: Routes = [
       },
 
       ...RUTAS_OPERACION,
+
+      {
+        path: 'historial',
+        loadComponent: () =>
+          import('./features/admin/historial/historial').then(
+            (m) => m.Historial,
+          ),
+      },
     ],
   },
 
