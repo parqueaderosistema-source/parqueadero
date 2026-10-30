@@ -1,8 +1,6 @@
 import { Component } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
 
-import { Sidebar } from '../../../shared/components/sidebar/sidebar';
-import { Topbar } from '../../../shared/components/topbar/topbar';
+import { PanelLayout } from '../../../shared/components/panel-layout/panel-layout';
 import { GrupoMenu } from '../../../shared/components/menu-navegacion/menu.model';
 
 const MENU_TRABAJADOR: GrupoMenu[] = [
@@ -22,7 +20,7 @@ const MENU_TRABAJADOR: GrupoMenu[] = [
 
   standalone: true,
 
-  imports: [RouterOutlet, Sidebar, Topbar],
+  imports: [PanelLayout],
 
   templateUrl: './layout-trabajador.html',
 

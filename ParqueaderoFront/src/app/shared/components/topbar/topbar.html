@@ -1,25 +1,49 @@
 <header
-  class="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8"
+  class="sticky top-0 z-30 flex h-20 items-center justify-between gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8"
 >
 
-  <div>
+  <div class="flex min-w-0 items-center gap-3">
 
-    <p
-      class="text-sm text-slate-500"
-    >
-      Sistema de Parqueadero
-    </p>
+    <!-- HAMBURGUESA (celular y tablet) -->
 
-    <h2
-      class="font-bold text-slate-900"
+    <button
+      type="button"
+      (click)="abrirMenu.emit()"
+      aria-label="Abrir menú"
+      class="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-slate-200 text-slate-700 transition hover:bg-slate-100 lg:hidden"
     >
-      {{ titulo() }}
-    </h2>
+      <svg
+        class="h-6 w-6"
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        stroke-width="2"
+        aria-hidden="true"
+      >
+        <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+      </svg>
+    </button>
+
+    <div class="min-w-0">
+
+      <p
+        class="truncate text-sm text-slate-500"
+      >
+        Sistema de Parqueadero
+      </p>
+
+      <h2
+        class="truncate font-bold text-slate-900"
+      >
+        {{ titulo() }}
+      </h2>
+
+    </div>
 
   </div>
 
   <div
-    class="flex items-center gap-4"
+    class="flex shrink-0 items-center gap-4"
   >
 
     <div
@@ -41,11 +65,12 @@
 
     </div>
 
+    <!-- En celular el cierre de sesión está en el menú -->
     <button
       type="button"
-      (click)="cerrarSesion()"
+      (click)="cerrarSesion.emit()"
       [disabled]="cerrandoSesion()"
-      class="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+      class="hidden rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60 sm:inline-flex"
     >
       Cerrar sesión
     </button>
