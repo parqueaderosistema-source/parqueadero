@@ -6,6 +6,7 @@ import {
   recaudoHoy,
   registrarEntrada,
   registrarSalida,
+  resumenAdministrador,
   resumenHoy,
 } from "../controllers/registro.controller.js";
 
@@ -54,6 +55,14 @@ router.get(
   verificarAutenticacion,
   permitirRoles("administrador", "trabajador"),
   resumenHoy,
+);
+
+// Solo administrador
+router.get(
+  "/resumen/admin",
+  verificarAutenticacion,
+  permitirRoles("administrador"),
+  resumenAdministrador,
 );
 
 export default router;

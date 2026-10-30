@@ -21,6 +21,8 @@ app.use(
   cors({
     origin: frontendUrl,
     credentials: true,
+    // Permite al front leer el nombre del archivo en las descargas (Excel).
+    exposedHeaders: ["Content-Disposition"],
   }),
 );
 
