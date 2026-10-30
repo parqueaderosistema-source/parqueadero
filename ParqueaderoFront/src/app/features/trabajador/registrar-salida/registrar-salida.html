@@ -70,7 +70,7 @@
         type="text"
         formControlName="placa"
         (input)="convertirPlacaMayusculas()"
-        maxlength="20"
+        maxlength="30"
         autocomplete="off"
         placeholder="Ej. ABC456"
         class="min-w-0 flex-1 rounded-xl border border-slate-300 bg-white px-5 py-4 text-lg font-bold uppercase tracking-wider text-slate-950 outline-none transition placeholder:font-normal placeholder:tracking-normal placeholder:text-slate-400 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
@@ -78,7 +78,7 @@
 
       <button
         type="submit"
-        [disabled]="buscando()"
+        [disabled]="ocupado()"
         class="rounded-xl bg-slate-950 px-8 py-4 font-semibold text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-60"
       >
 
@@ -94,13 +94,22 @@
 
     @if (
       formularioBusqueda.controls.placa.touched &&
-      formularioBusqueda.controls.placa.invalid
+      formularioBusqueda.controls.placa.errors;
+      as errores
     ) {
 
       <p
         class="mt-2 text-sm text-red-600"
       >
-        Ingresa una placa válida.
+        @if (errores['required']) {
+          Escribe la placa que quieres buscar.
+        } @else if (errores['placaCaracteres']) {
+          Solo se permiten letras, números, espacios y guiones.
+        } @else if (errores['placaLongitud']) {
+          La placa debe tener entre 3 y 20 letras o números.
+        } @else {
+          Ingresa una placa válida.
+        }
       </p>
 
     }
@@ -301,23 +310,43 @@
                 id="valorCobrado"
                 type="number"
                 formControlName="valorCobrado"
-                min="0"
+                min="1"
                 step="100"
                 inputmode="numeric"
-                class="w-full rounded-xl border border-slate-300 bg-white py-4 pl-9 pr-4 text-2xl font-bold text-slate-950 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
+                placeholder="0"
+                class="w-full rounded-xl border border-slate-300 bg-white py-4 pl-9 pr-4 text-2xl font-bold text-slate-950 outline-none transition placeholder:text-slate-300 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10"
               />
 
             </div>
 
             @if (
               formularioSalida.controls.valorCobrado.touched &&
-              formularioSalida.controls.valorCobrado.invalid
+              formularioSalida.controls.valorCobrado.errors;
+              as errores
             ) {
 
               <p
                 class="mt-2 text-sm text-red-600"
               >
-                Ingresa un valor válido.
+                @if (errores['required']) {
+                  Ingresa el valor cobrado.
+                } @else if (errores['entero']) {
+                  El valor debe ser un número entero, sin decimales.
+                } @else if (errores['min']) {
+                  El valor cobrado debe ser mayor que 0.
+                } @else if (errores['max']) {
+                  El valor cobrado es demasiado alto.
+                } @else {
+                  Ingresa un valor válido.
+                }
+              </p>
+
+            } @else if (errorValorServidor()) {
+
+              <p
+                class="mt-2 text-sm text-red-600"
+              >
+                {{ errorValorServidor() }}
               </p>
 
             }
@@ -360,7 +389,8 @@
           <button
             type="button"
             (click)="cancelar()"
-            class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            [disabled]="guardando()"
+            class="rounded-xl border border-slate-200 px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
           >
             Cancelar
           </button>
@@ -368,12 +398,14 @@
 
           <button
             type="submit"
-            [disabled]="guardando()"
+            [disabled]="ocupado()"
             class="rounded-xl bg-emerald-500 px-8 py-3.5 text-sm font-bold text-slate-950 transition hover:bg-emerald-400 focus:ring-4 focus:ring-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
 
             @if (guardando()) {
               Registrando salida...
+            } @else if (valorCobradoFormateado()) {
+              Confirmar salida · {{ valorCobradoFormateado() }}
             } @else {
               Confirmar salida
             }

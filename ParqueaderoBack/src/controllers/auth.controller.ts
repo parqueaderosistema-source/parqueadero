@@ -1,7 +1,11 @@
 import type { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 
-import { autenticarUsuario } from "../services/auth.service.js";
+import type { AuthRequest } from "../middlewares/auth.middleware.js";
+import {
+  autenticarUsuario,
+  obtenerUsuarioActivoPorId,
+} from "../services/auth.service.js";
 import { loginSchema } from "../validators/auth.validator.js";
 
 const COOKIE_NAME = "parqueadero_session";
@@ -75,5 +79,27 @@ export function logout(_request: Request, response: Response): void {
   response.status(200).json({
     ok: true,
     message: "Sesión cerrada correctamente",
+  });
+}
+
+export async function me(
+  request: AuthRequest,
+  response: Response,
+): Promise<void> {
+  const usuario = request.usuario
+    ? await obtenerUsuarioActivoPorId(request.usuario.id)
+    : null;
+
+  if (!usuario) {
+    response.status(401).json({
+      ok: false,
+      message: "La sesión no es válida o el usuario está desactivado",
+    });
+    return;
+  }
+
+  response.status(200).json({
+    ok: true,
+    usuario,
   });
 }
