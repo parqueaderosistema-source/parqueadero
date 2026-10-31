@@ -1,44 +1,17 @@
 import { Types } from "mongoose";
 
-import { AuditoriaModel } from "../models/Auditoria.js";
 import { RegistroParqueaderoModel } from "../models/RegistroParqueadero.js";
 import { TipoVehiculoModel } from "../models/TipoVehiculo.js";
-import {
-  obtenerRangoDiaActual,
-  obtenerRangoMes,
-  type RangoFechas,
-} from "../utils/fechas.js";
 import { HttpError } from "../utils/httpError.js";
+import { esErrorDuplicado } from "../utils/mongo.js";
+import { conTipoMostrado } from "../utils/tipoMostrado.js";
 import { normalizarPlaca } from "../validators/registro.validator.js";
+import { registrarAuditoria } from "./auditoria.service.js";
 
-/**
- * Código de MongoDB para violación de índice único.
+/*
+ * Operaciones del parqueadero: entrada, búsqueda y salida.
+ * Las consultas de caja y resúmenes están en resumen.service.
  */
-function esErrorDuplicado(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    (error as { code?: number }).code === 11000
-  );
-}
-
-/**
- * Agrega tipoMostrado: el tipo personalizado si existe,
- * o el nombre del tipo guardado al momento de la entrada.
- */
-export function conTipoMostrado<
-  T extends {
-    tipoVehiculoNombre: string;
-    tipoVehiculoPersonalizado?: string | null;
-  },
->(registro: T) {
-  return {
-    ...registro,
-    tipoVehiculoPersonalizado: registro.tipoVehiculoPersonalizado ?? null,
-    tipoMostrado:
-      registro.tipoVehiculoPersonalizado || registro.tipoVehiculoNombre,
-  };
-}
 
 const LARGO_MINIMO_PERSONALIZADO = 2;
 const LARGO_MAXIMO_PERSONALIZADO = 40;
@@ -148,8 +121,8 @@ export async function registrarEntradaVehiculo(datos: EntradaDatos) {
     throw error;
   });
 
-  await AuditoriaModel.create({
-    usuario: datos.usuarioId,
+  await registrarAuditoria({
+    usuarioId: datos.usuarioId,
     accion: "ENTRADA_VEHICULO",
     descripcion: `Entrada registrada para la placa ${placaNormalizada}`,
     datos: {
@@ -277,8 +250,8 @@ export async function registrarSalidaVehiculo(datos: SalidaDatos) {
     );
   }
 
-  await AuditoriaModel.create({
-    usuario: datos.usuarioId,
+  await registrarAuditoria({
+    usuarioId: datos.usuarioId,
     accion: "SALIDA_VEHICULO",
     descripcion: `Salida registrada para la placa ${placaNormalizada}`,
     datos: {
@@ -290,151 +263,4 @@ export async function registrarSalidaVehiculo(datos: SalidaDatos) {
   });
 
   return conTipoMostrado(registro.toObject());
-}
-
-/**
- * Filtro de salidas cobradas dentro de un rango.
- * Es la única definición de "recaudo": la usan la caja,
- * el resumen del día y el dashboard del administrador.
- * Los anulados no cuentan porque su estado no es "retirado".
- */
-function crearFiltroSalidas(rango: RangoFechas) {
-  return {
-    estado: "retirado" as const,
-    fechaHoraSalida: {
-      $gte: rango.inicioUtc,
-      $lte: rango.finUtc,
-    },
-  };
-}
-
-async function calcularRecaudo(rango: RangoFechas): Promise<number> {
-  const resultado = await RegistroParqueaderoModel.aggregate<{
-    total: number;
-  }>([
-    { $match: crearFiltroSalidas(rango) },
-    {
-      $group: {
-        _id: null,
-        total: { $sum: { $ifNull: ["$valorCobrado", 0] } },
-      },
-    },
-  ]);
-
-  return resultado[0]?.total ?? 0;
-}
-
-export async function obtenerRecaudoDelDia() {
-  const rango = obtenerRangoDiaActual();
-
-  const [registros, totalRecaudado] = await Promise.all([
-    RegistroParqueaderoModel.find(crearFiltroSalidas(rango))
-      .sort({
-        fechaHoraSalida: -1,
-      })
-      .lean(),
-
-    calcularRecaudo(rango),
-  ]);
-
-  return {
-    fecha: rango.inicioLocal.toISODate(),
-    totalVehiculos: registros.length,
-    totalRecaudado,
-    registros: registros.map(conTipoMostrado),
-  };
-}
-
-export async function obtenerResumenDelDia() {
-  const rango = obtenerRangoDiaActual();
-
-  const [vehiculosDentro, entradasHoy, salidasHoy, recaudoHoy] =
-    await Promise.all([
-      RegistroParqueaderoModel.countDocuments({
-        estado: "dentro",
-      }),
-
-      RegistroParqueaderoModel.countDocuments({
-        estado: { $ne: "anulado" },
-        fechaHoraEntrada: {
-          $gte: rango.inicioUtc,
-          $lte: rango.finUtc,
-        },
-      }),
-
-      RegistroParqueaderoModel.countDocuments(crearFiltroSalidas(rango)),
-
-      calcularRecaudo(rango),
-    ]);
-
-  return {
-    fecha: rango.inicioLocal.toISODate(),
-
-    vehiculosDentro,
-
-    entradasHoy,
-
-    salidasHoy,
-
-    recaudoHoy,
-  };
-}
-
-const CANTIDAD_ULTIMOS_MOVIMIENTOS = 5;
-
-/**
- * Resumen del día más los datos exclusivos del administrador.
- */
-export async function obtenerResumenAdministrador() {
-  const rangoDia = obtenerRangoDiaActual();
-  const rangoMes = obtenerRangoMes();
-
-  const [resumenDia, recaudoMes, anuladosHoy, ultimos] = await Promise.all([
-    obtenerResumenDelDia(),
-
-    calcularRecaudo(rangoMes),
-
-    RegistroParqueaderoModel.countDocuments({
-      estado: "anulado",
-      fechaAnulacion: {
-        $gte: rangoDia.inicioUtc,
-        $lte: rangoDia.finUtc,
-      },
-    }),
-
-    RegistroParqueaderoModel.find()
-      .sort({ updatedAt: -1 })
-      .limit(CANTIDAD_ULTIMOS_MOVIMIENTOS)
-      .lean(),
-  ]);
-
-  const ultimosMovimientos = ultimos.map((registro) => {
-    const movimiento =
-      registro.estado === "dentro"
-        ? "entrada"
-        : registro.estado === "retirado"
-          ? "salida"
-          : "anulacion";
-
-    const fecha =
-      movimiento === "entrada"
-        ? registro.fechaHoraEntrada
-        : movimiento === "salida"
-          ? registro.fechaHoraSalida
-          : registro.updatedAt;
-
-    return {
-      ...conTipoMostrado(registro),
-      movimiento,
-      fechaMovimiento: fecha,
-    };
-  });
-
-  return {
-    ...resumenDia,
-    mes: rangoMes.inicioLocal.toFormat("yyyy-MM"),
-    recaudoMes,
-    anuladosHoy,
-    ultimosMovimientos,
-  };
 }

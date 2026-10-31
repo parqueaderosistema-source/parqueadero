@@ -62,3 +62,19 @@ export const registrarSalidaSchema = z.object({
     .max(500, "La observación es demasiado larga")
     .optional(),
 });
+
+/**
+ * Placa recibida en la URL (/buscar/:placa, /salida/:placa).
+ */
+export const placaParamsSchema = z.object({
+  placa: z
+    .string()
+    .transform(normalizarPlaca)
+    .pipe(
+      z
+        .string()
+        .min(1, "La placa es obligatoria")
+        .max(20, "La placa es demasiado larga")
+        .regex(/^[A-Z0-9]+$/, "La placa contiene caracteres no permitidos"),
+    ),
+});

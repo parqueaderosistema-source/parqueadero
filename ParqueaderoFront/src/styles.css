@@ -1,1 +1,46 @@
 @import "tailwindcss";
+
+/* Paleta base de la aplicación */
+:root {
+  --frosted-mint: #d8f3dcff;
+  --celadon: #b7e4c7ff;
+  --celadon-2: #95d5b2ff;
+  --mint-leaf: #74c69dff;
+  --mint-leaf-2: #52b788ff;
+  --sea-green: #40916cff;
+  --dark-emerald: #2d6a4fff;
+  --pine-teal: #1b4332ff;
+  --evergreen: #081c15ff;
+}
+
+/*
+ * Se redefinen las escalas de Tailwind que usa la app para que todas las
+ * clases existentes (bg-emerald-500, text-slate-950, ...) tomen la paleta.
+ */
+@theme {
+  /* Acento: verdes pastel */
+  --color-emerald-50: #eef9f0;
+  --color-emerald-100: var(--frosted-mint);
+  --color-emerald-200: var(--celadon);
+  --color-emerald-300: var(--celadon-2);
+  --color-emerald-400: var(--mint-leaf);
+  --color-emerald-500: var(--mint-leaf-2);
+  --color-emerald-600: var(--dark-emerald);
+  --color-emerald-700: var(--pine-teal);
+  --color-emerald-800: var(--pine-teal);
+  --color-emerald-900: #0f2e22;
+  --color-emerald-950: var(--evergreen);
+
+  /* Neutros con matiz verde (textos, bordes, fondos oscuros) */
+  --color-slate-50: #f4faf6;
+  --color-slate-100: #e8f3ec;
+  --color-slate-200: #d3e6da;
+  --color-slate-300: #b4cfbf;
+  --color-slate-400: #86a796;
+  --color-slate-500: #5f7f6e;
+  --color-slate-600: #476455;
+  --color-slate-700: #344c40;
+  --color-slate-800: var(--pine-teal);
+  --color-slate-900: #0f2e22;
+  --color-slate-950: var(--evergreen);
+}

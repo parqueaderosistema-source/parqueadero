@@ -1,6 +1,9 @@
 import type { Request, Response } from "express";
 
-import type { AuthRequest } from "../middlewares/auth.middleware.js";
+import {
+  usuarioDeSesion,
+  type AuthRequest,
+} from "../middlewares/auth.middleware.js";
 
 import {
   eliminarHistorialMes,
@@ -10,165 +13,99 @@ import {
   obtenerVistaPreviaEliminacion,
 } from "../services/historial.service.js";
 
-import { responderError } from "../utils/responderError.js";
+import { validar } from "../utils/validar.js";
+
 import {
   eliminarMesSchema,
   filtrosHistorialSchema,
-  periodoSchema,
+  periodoParamsSchema,
 } from "../validators/historial.validator.js";
-
-/**
- * Valida el parámetro :periodo. Responde 400 y devuelve null si no es válido.
- */
-function leerPeriodo(request: Request, response: Response): string | null {
-  const resultado = periodoSchema.safeParse(request.params.periodo);
-
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: resultado.error.issues[0]?.message ?? "El periodo no es válido",
-    });
-    return null;
-  }
-
-  return resultado.data;
-}
 
 export async function listarMeses(
   _request: Request,
   response: Response,
 ): Promise<void> {
-  try {
-    const meses = await obtenerResumenMensual();
+  const meses = await obtenerResumenMensual();
 
-    response.status(200).json({
-      ok: true,
-      meses,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible consultar los meses");
-  }
+  response.status(200).json({
+    ok: true,
+    meses,
+  });
 }
 
 export async function listarHistorial(
   request: Request,
   response: Response,
 ): Promise<void> {
-  const resultado = filtrosHistorialSchema.safeParse(request.query);
+  const filtros = validar(
+    filtrosHistorialSchema,
+    request.query,
+    "Los filtros enviados no son válidos",
+  );
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Los filtros enviados no son válidos",
-      errores: resultado.error.flatten().fieldErrors,
-    });
-    return;
-  }
+  const historial = await obtenerHistorial(filtros);
 
-  try {
-    const historial = await obtenerHistorial(resultado.data);
-
-    response.status(200).json({
-      ok: true,
-      ...historial,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible consultar el historial");
-  }
+  response.status(200).json({
+    ok: true,
+    ...historial,
+  });
 }
 
 export async function exportarHistorialMes(
   request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  const periodo = leerPeriodo(request, response);
+  const { periodo } = validar(periodoParamsSchema, request.params);
 
-  if (!periodo || !request.usuario) {
-    return;
-  }
+  const { archivo, nombreArchivo } = await generarExcelHistorial(
+    periodo,
+    usuarioDeSesion(request).id,
+  );
 
-  try {
-    const { archivo, nombreArchivo } = await generarExcelHistorial(
-      periodo,
-      request.usuario.id,
-    );
+  response.setHeader(
+    "Content-Type",
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  );
 
-    response.setHeader(
-      "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    );
+  response.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${nombreArchivo}"`,
+  );
 
-    response.setHeader(
-      "Content-Disposition",
-      `attachment; filename="${nombreArchivo}"`,
-    );
-
-    response.send(archivo);
-  } catch (error) {
-    responderError(response, error, "No fue posible generar el archivo");
-  }
+  response.send(archivo);
 }
 
 export async function prepararEliminacionMes(
   request: Request,
   response: Response,
 ): Promise<void> {
-  const periodo = leerPeriodo(request, response);
+  const { periodo } = validar(periodoParamsSchema, request.params);
 
-  if (!periodo) {
-    return;
-  }
+  const vistaPrevia = await obtenerVistaPreviaEliminacion(periodo);
 
-  try {
-    const vistaPrevia = await obtenerVistaPreviaEliminacion(periodo);
-
-    response.status(200).json({
-      ok: true,
-      ...vistaPrevia,
-    });
-  } catch (error) {
-    responderError(
-      response,
-      error,
-      "No fue posible preparar la eliminación del periodo",
-    );
-  }
+  response.status(200).json({
+    ok: true,
+    ...vistaPrevia,
+  });
 }
 
 export async function eliminarMes(
   request: AuthRequest,
   response: Response,
 ): Promise<void> {
-  const periodo = leerPeriodo(request, response);
+  const { periodo } = validar(periodoParamsSchema, request.params);
 
-  if (!periodo || !request.usuario) {
-    return;
-  }
+  const datos = validar(eliminarMesSchema, request.body);
 
-  const resultado = eliminarMesSchema.safeParse(request.body ?? {});
+  const eliminado = await eliminarHistorialMes({
+    periodo,
+    ...datos,
+    usuarioId: usuarioDeSesion(request).id,
+  });
 
-  if (!resultado.success) {
-    response.status(400).json({
-      ok: false,
-      message: "Los datos enviados no son válidos",
-      errores: resultado.error.flatten().fieldErrors,
-    });
-    return;
-  }
-
-  try {
-    const eliminado = await eliminarHistorialMes({
-      periodo,
-      ...resultado.data,
-      usuarioId: request.usuario.id,
-    });
-
-    response.status(200).json({
-      ok: true,
-      message: "Historial eliminado definitivamente",
-      resultado: eliminado,
-    });
-  } catch (error) {
-    responderError(response, error, "No fue posible eliminar el historial");
-  }
+  response.status(200).json({
+    ok: true,
+    message: "Historial eliminado definitivamente",
+    resultado: eliminado,
+  });
 }

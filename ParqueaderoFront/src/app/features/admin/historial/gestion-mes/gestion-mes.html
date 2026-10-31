@@ -9,9 +9,36 @@
     </h2>
 
     <p class="mt-1 text-sm text-slate-500">
-      Descarga el respaldo en Excel y libera espacio eliminando el historial de
-      <span class="font-semibold capitalize text-slate-700">{{ formatearPeriodo(periodo()) }}</span>.
+      Elige el mes, descarga el respaldo en Excel y, si quieres, libera espacio
+      eliminando su historial.
     </p>
+
+    <label
+      for="periodoGestion"
+      class="mb-1.5 mt-4 block text-sm font-semibold text-slate-700"
+    >
+      Mes a descargar
+    </label>
+
+    <select
+      id="periodoGestion"
+      (change)="seleccionarPeriodo($any($event.target).value)"
+      [disabled]="ocupado()"
+      class="w-full rounded-xl border border-slate-300 bg-white px-4 py-2.5 capitalize text-slate-900 outline-none transition focus:border-emerald-500 focus:ring-4 focus:ring-emerald-500/10 disabled:opacity-60 sm:w-80"
+    >
+      @if (periodoFueraDeLista()) {
+        <option [value]="periodo()" selected>
+          {{ formatearPeriodo(periodo()) }} (sin registros)
+        </option>
+      }
+
+      @for (mes of meses(); track mes.periodo) {
+        <option [value]="mes.periodo" [selected]="mes.periodo === periodo()">
+          {{ mes.nombreMes }} · {{ mes.cantidadRegistros }}
+          {{ mes.cantidadRegistros === 1 ? 'registro' : 'registros' }}
+        </option>
+      }
+    </select>
 
   </div>
 

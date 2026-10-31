@@ -1,10 +1,12 @@
 import { DateTime } from "luxon";
 
+import { env } from "../config/env.js";
+
 /**
  * Zona horaria utilizada por el parqueadero.
  */
 export function obtenerZonaHoraria(): string {
-  return process.env.APP_TIMEZONE ?? "America/Bogota";
+  return env.APP_TIMEZONE;
 }
 
 export interface RangoFechas {

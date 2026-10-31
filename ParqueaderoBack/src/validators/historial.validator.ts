@@ -93,3 +93,7 @@ export const eliminarMesSchema = z.object({
     .optional()
     .default(false),
 });
+
+export const periodoParamsSchema = z.object({
+  periodo: periodoSchema,
+});

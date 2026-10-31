@@ -1,166 +1,26 @@
-import { Injectable } from '@angular/core';
-import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { Observable, catchError, from, map, switchMap, throwError } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
 
-import {
-  ActualizarTipoVehiculoRequest,
-  ArchivoDescargado,
-  TipoVehiculoGuardadoResponse,
-  TiposVehiculoAdminResponse,
-  EliminarMesRequest,
-  EliminarMesResponse,
-  FiltrosHistorial,
-  HistorialResponse,
-  MesesHistorialResponse,
-  ResumenAdminResponse,
-  VistaPreviaEliminacionResponse,
-} from '../models/admin.model';
+import { API_URL } from '../config/api.config';
+
+import { ResumenAdminResponse } from '../models/admin.model';
 
 /**
- * Lee el nombre de 'attachment; filename="historial-2026-08.xlsx"'
- * (el back lo expone con exposedHeaders de CORS).
- */
-function nombreDesdeEncabezado(encabezado: string | null): string | null {
-  const coincidencia = encabezado?.match(/filename="?([^";]+)"?/i);
-
-  return coincidencia?.[1] ?? null;
-}
-
-/**
- * Con responseType 'blob' el cuerpo del error también llega como Blob.
- * Se convierte a JSON para que obtenerMensajeError lea "message".
- */
-function convertirErrorBlob(error: unknown): Observable<never> {
-  if (!(error instanceof HttpErrorResponse) || !(error.error instanceof Blob)) {
-    return throwError(() => error);
-  }
-
-  return from(error.error.text()).pipe(
-    switchMap((texto) => {
-      let cuerpo: unknown = null;
-
-      try {
-        cuerpo = JSON.parse(texto);
-      } catch {
-        cuerpo = null;
-      }
-
-      return throwError(
-        () =>
-          new HttpErrorResponse({
-            error: cuerpo,
-            headers: error.headers,
-            status: error.status,
-            statusText: error.statusText,
-            url: error.url ?? undefined,
-          }),
-      );
-    }),
-  );
-}
-
-/**
- * Endpoints exclusivos del administrador.
- * Lo operativo (entrada, salida, caja) sigue en ParqueaderoService.
+ * Datos del dashboard del administrador.
+ * Historial y tipos de vehículo tienen su propio servicio.
  */
 @Injectable({
   providedIn: 'root',
 })
 export class AdminService {
-  private readonly apiUrl = 'http://localhost:3000/api';
+  private readonly http = inject(HttpClient);
 
-  constructor(private readonly http: HttpClient) {}
+  private readonly apiUrl = inject(API_URL);
 
   obtenerResumenAdmin(): Observable<ResumenAdminResponse> {
     return this.http.get<ResumenAdminResponse>(
       `${this.apiUrl}/registros/resumen/admin`,
-    );
-  }
-
-  obtenerMesesHistorial(): Observable<MesesHistorialResponse> {
-    return this.http.get<MesesHistorialResponse>(
-      `${this.apiUrl}/historial/meses`,
-    );
-  }
-
-  /**
-   * Solo se envían los filtros con valor.
-   */
-  obtenerHistorial(filtros: FiltrosHistorial): Observable<HistorialResponse> {
-    const params: Record<string, string | number> = {};
-
-    for (const [clave, valor] of Object.entries(filtros)) {
-      if (valor !== undefined && valor !== null && valor !== '') {
-        params[clave] = valor;
-      }
-    }
-
-    return this.http.get<HistorialResponse>(`${this.apiUrl}/historial`, {
-      params,
-    });
-  }
-
-  descargarHistorialMes(periodo: string): Observable<ArchivoDescargado> {
-    return this.http
-      .get(
-        `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}/exportar`,
-        {
-          responseType: 'blob',
-          observe: 'response',
-        },
-      )
-      .pipe(
-        map((respuesta) => ({
-          archivo: respuesta.body ?? new Blob(),
-          nombre:
-            nombreDesdeEncabezado(respuesta.headers.get('Content-Disposition')) ??
-            `historial-${periodo}.xlsx`,
-        })),
-
-        catchError(convertirErrorBlob),
-      );
-  }
-
-  prepararEliminacionMes(
-    periodo: string,
-  ): Observable<VistaPreviaEliminacionResponse> {
-    return this.http.get<VistaPreviaEliminacionResponse>(
-      `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}/preparar-eliminacion`,
-    );
-  }
-
-  obtenerTiposVehiculo(): Observable<TiposVehiculoAdminResponse> {
-    return this.http.get<TiposVehiculoAdminResponse>(
-      `${this.apiUrl}/tipos-vehiculo`,
-    );
-  }
-
-  crearTipoVehiculo(nombre: string): Observable<TipoVehiculoGuardadoResponse> {
-    return this.http.post<TipoVehiculoGuardadoResponse>(
-      `${this.apiUrl}/tipos-vehiculo`,
-      { nombre },
-    );
-  }
-
-  actualizarTipoVehiculo(
-    id: string,
-    datos: ActualizarTipoVehiculoRequest,
-  ): Observable<TipoVehiculoGuardadoResponse> {
-    return this.http.patch<TipoVehiculoGuardadoResponse>(
-      `${this.apiUrl}/tipos-vehiculo/${encodeURIComponent(id)}`,
-      datos,
-    );
-  }
-
-  eliminarMes(
-    periodo: string,
-    datos: EliminarMesRequest,
-  ): Observable<EliminarMesResponse> {
-    return this.http.delete<EliminarMesResponse>(
-      `${this.apiUrl}/historial/mes/${encodeURIComponent(periodo)}`,
-      {
-        body: datos,
-      },
     );
   }
 }

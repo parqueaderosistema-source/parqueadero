@@ -19,7 +19,9 @@ import {
   tap,
 } from 'rxjs';
 
-import { AdminService } from '../../../core/services/admin.service';
+import { HistorialService } from '../../../core/services/historial.service';
+
+import { TiposVehiculoService } from '../../../core/services/tipos-vehiculo.service';
 
 import {
   EstadoRegistro,
@@ -99,7 +101,9 @@ function leerFiltros(parametros: ParamMap): FiltrosHistorial {
   templateUrl: './historial.html',
 })
 export class Historial implements OnInit {
-  private readonly adminService = inject(AdminService);
+  private readonly historialService = inject(HistorialService);
+
+  private readonly tiposVehiculoService = inject(TiposVehiculoService);
 
   private readonly route = inject(ActivatedRoute);
 
@@ -178,7 +182,7 @@ export class Historial implements OnInit {
         switchMap((filtros) => {
           this.cargando.set(true);
 
-          return this.adminService.obtenerHistorial(filtros).pipe(
+          return this.historialService.obtenerHistorial(filtros).pipe(
             catchError((error) => {
               this.historial.set(null);
 
@@ -218,8 +222,8 @@ export class Historial implements OnInit {
   cargarMeses(): void {
     this.cargandoMeses.set(true);
 
-    this.adminService
-      .obtenerMesesHistorial()
+    this.historialService
+      .obtenerMeses()
       .pipe(
         finalize(() => {
           this.cargandoMeses.set(false);
@@ -250,7 +254,7 @@ export class Historial implements OnInit {
   }
 
   private cargarTipos(): void {
-    this.adminService.obtenerTiposVehiculo().subscribe({
+    this.tiposVehiculoService.obtenerTodos().subscribe({
       next: (respuesta) => {
         this.tipos.set(respuesta.tipos ?? []);
       },

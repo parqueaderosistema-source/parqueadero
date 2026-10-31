@@ -1,6 +1,8 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+
+import { API_URL } from '../config/api.config';
 
 import {
   BuscarVehiculoResponse,
@@ -9,24 +11,20 @@ import {
   RegistrarEntradaResponse,
   RegistrarSalidaRequest,
   RegistrarSalidaResponse,
-  TiposVehiculoResponse,
   VehiculosDentroResponse,
   ResumenDiaResponse,
 } from '../models/parqueadero.model';
 
+/**
+ * Operación del parqueadero: entradas, salidas, caja y resumen del día.
+ */
 @Injectable({
   providedIn: 'root',
 })
 export class ParqueaderoService {
-  private readonly apiUrl = 'http://localhost:3000/api';
+  private readonly http = inject(HttpClient);
 
-  constructor(private readonly http: HttpClient) {}
-
-  obtenerTiposVehiculo(): Observable<TiposVehiculoResponse> {
-    return this.http.get<TiposVehiculoResponse>(
-      `${this.apiUrl}/tipos-vehiculo/activos`,
-    );
-  }
+  private readonly apiUrl = inject(API_URL);
 
   registrarEntrada(
     datos: RegistrarEntradaRequest,

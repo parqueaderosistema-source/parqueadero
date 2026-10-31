@@ -1,5 +1,7 @@
 import { Schema, model, type InferSchemaType } from "mongoose";
 
+import { ROLES } from "../config/roles.js";
+
 const usuarioSchema = new Schema(
   {
     nombre: {
@@ -26,7 +28,7 @@ const usuarioSchema = new Schema(
 
     rol: {
       type: String,
-      enum: ["administrador", "trabajador"],
+      enum: ROLES,
       required: true,
     },
 

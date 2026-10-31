@@ -1,8 +1,10 @@
-import { Injectable, signal } from '@angular/core';
+import { Injectable, inject, signal } from '@angular/core';
 
 import { HttpClient } from '@angular/common/http';
 
 import { Observable, catchError, map, of, tap } from 'rxjs';
+
+import { API_URL } from '../config/api.config';
 
 import {
   LoginResponse,
@@ -14,13 +16,13 @@ import {
   providedIn: 'root',
 })
 export class AuthService {
-  private readonly apiUrl = 'http://localhost:3000/api/auth';
+  private readonly http = inject(HttpClient);
+
+  private readonly apiUrl = `${inject(API_URL)}/auth`;
 
   private readonly usuarioSignal = signal<Usuario | null>(null);
 
   readonly usuario = this.usuarioSignal.asReadonly();
-
-  constructor(private readonly http: HttpClient) {}
 
   login(correo: string, password: string): Observable<LoginResponse> {
     return this.http

@@ -8,7 +8,11 @@ import { Router } from '@angular/router';
 
 import { finalize } from 'rxjs';
 
+import { RUTA_INICIO_POR_ROL } from '../../../core/models/usuario.model';
+
 import { AuthService } from '../../../core/services/auth.service';
+
+import { obtenerMensajeError } from '../../../core/utils/http-error';
 
 @Component({
   selector: 'app-login',
@@ -66,18 +70,14 @@ export class Login {
       )
       .subscribe({
         next: (respuesta) => {
-          if (respuesta.usuario.rol === 'administrador') {
-            void this.router.navigate(['/admin']);
-
-            return;
-          }
-
-          void this.router.navigate(['/trabajador']);
+          void this.router.navigate([
+            RUTA_INICIO_POR_ROL[respuesta.usuario.rol],
+          ]);
         },
 
         error: (error) => {
           this.mensajeError.set(
-            error?.error?.message ?? 'No fue posible iniciar sesión.',
+            obtenerMensajeError(error, 'No fue posible iniciar sesión.'),
           );
         },
       });

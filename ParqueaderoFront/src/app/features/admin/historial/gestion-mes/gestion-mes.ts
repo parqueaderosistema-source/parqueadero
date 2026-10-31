@@ -1,12 +1,30 @@
-import { Component, computed, inject, input, output, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  inject,
+  input,
+  linkedSignal,
+  output,
+  signal,
+} from '@angular/core';
 
 import { takeUntilDestroyed, toObservable } from '@angular/core/rxjs-interop';
 
-import { Observable, catchError, finalize, map, of, switchMap, tap } from 'rxjs';
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  finalize,
+  map,
+  of,
+  switchMap,
+  tap,
+} from 'rxjs';
 
-import { AdminService } from '../../../../core/services/admin.service';
+import { HistorialService } from '../../../../core/services/historial.service';
 
 import {
+  MesHistorial,
   ModoEliminacion,
   VistaPreviaEliminacionResponse,
 } from '../../../../core/models/admin.model';
@@ -19,6 +37,7 @@ import { formatearDinero, formatearPeriodo } from '../../../../core/utils/format
 
 /**
  * Descargar y eliminar el historial de un mes.
+ * El mes se elige aquí; arranca en el mes filtrado en la tabla.
  * El texto de confirmación lo define el back ("ELIMINAR AAAA-MM").
  */
 @Component({
@@ -29,9 +48,22 @@ import { formatearDinero, formatearPeriodo } from '../../../../core/utils/format
   templateUrl: './gestion-mes.html',
 })
 export class GestionMes {
-  private readonly adminService = inject(AdminService);
+  private readonly historialService = inject(HistorialService);
 
-  readonly periodo = input.required<string>();
+  readonly meses = input.required<MesHistorial[]>();
+
+  /**
+   * Mes filtrado en la tabla ('' si se filtra por rango).
+   */
+  readonly periodoInicial = input('');
+
+  /**
+   * Mes elegido para descargar/eliminar. Vuelve al de la tabla
+   * cuando cambia el filtro o se recarga la lista de meses.
+   */
+  readonly periodo = linkedSignal(
+    () => this.periodoInicial() || this.meses()[0]?.periodo || '',
+  );
 
   readonly eliminado = output<void>();
 
@@ -81,12 +113,27 @@ export class GestionMes {
       .subscribe();
   }
 
+  /**
+   * El mes elegido puede no estar en la lista (mes sin registros).
+   */
+  readonly periodoFueraDeLista = computed(
+    () =>
+      !!this.periodo() &&
+      !this.meses().some((mes) => mes.periodo === this.periodo()),
+  );
+
+  seleccionarPeriodo(periodo: string): void {
+    if (!this.ocupado()) {
+      this.periodo.set(periodo);
+    }
+  }
+
   actualizarConfirmacion(valor: string): void {
     this.confirmacion.set(valor);
   }
 
   descargar(): void {
-    if (this.ocupado()) {
+    if (this.ocupado() || !this.periodo()) {
       return;
     }
 
@@ -132,9 +179,13 @@ export class GestionMes {
 
     this.errorVistaPrevia.set('');
 
+    if (!this.periodo()) {
+      return EMPTY;
+    }
+
     this.preparando.set(true);
 
-    return this.adminService.prepararEliminacionMes(this.periodo()).pipe(
+    return this.historialService.prepararEliminacionMes(this.periodo()).pipe(
       tap((respuesta) => {
         this.vistaPrevia.set(respuesta);
       }),
@@ -159,7 +210,7 @@ export class GestionMes {
   private descargarExcel(): Observable<boolean> {
     this.descargando.set(true);
 
-    return this.adminService.descargarHistorialMes(this.periodo()).pipe(
+    return this.historialService.descargarMes(this.periodo()).pipe(
       map(({ archivo, nombre }) => {
         guardarArchivo(archivo, nombre);
 
@@ -186,7 +237,7 @@ export class GestionMes {
   private eliminar(modo: ModoEliminacion): void {
     this.eliminando.set(true);
 
-    this.adminService
+    this.historialService
       .eliminarMes(this.periodo(), {
         confirmacion: this.confirmacion().trim(),
         modo,

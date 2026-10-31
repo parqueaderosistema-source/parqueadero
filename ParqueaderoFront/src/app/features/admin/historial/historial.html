@@ -479,23 +479,24 @@
   </div>
 
 
-  <!-- DESCARGAR Y ELIMINAR (solo con un mes seleccionado) -->
+  <!-- DESCARGAR Y ELIMINAR (el mes se elige dentro del bloque) -->
 
-  @if (mesSeleccionado()) {
+  @if (meses().length > 0 || mesSeleccionado()) {
 
     <div class="mt-6">
 
       <app-gestion-mes
-        [periodo]="mesSeleccionado()"
+        [meses]="meses()"
+        [periodoInicial]="mesSeleccionado()"
         (eliminado)="recargarTodo()"
       />
 
     </div>
 
-  } @else {
+  } @else if (!cargandoMeses()) {
 
     <p class="mt-6 text-sm text-slate-500">
-      Para descargar o eliminar el historial, filtra por un mes.
+      Todavía no hay meses con registros para descargar.
     </p>
 
   }
