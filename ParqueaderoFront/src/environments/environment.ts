@@ -1,7 +1,7 @@
 /**
- * Producción (ng build). El front se sirve detrás del mismo dominio
- * que la API (proxy inverso), por eso la ruta es relativa.
+ * Producción (ng build). El front está en Vercel y la API en Render,
+ * en dominios distintos: la sesión viaja en una cookie sameSite=none.
  */
 export const environment = {
-  apiUrl: '/api',
+  apiUrl: 'https://parqueadero-79ra.onrender.com/api',
 };

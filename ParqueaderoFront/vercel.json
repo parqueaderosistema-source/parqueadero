@@ -7,7 +7,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://URL-DEL-BACKEND/api/:path*"
+      "destination": "https://parqueadero-79ra.onrender.com/api/:path*"
     },
     {
       "source": "/((?!api/).*)",
