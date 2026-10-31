@@ -12,11 +12,13 @@ const ALGORITMO = "HS256";
 /**
  * Opciones compartidas por la cookie de sesión al crearla y al borrarla
  * (deben coincidir para que el navegador la elimine).
+ * En producción el front (Vercel) y el back (Render) están en dominios
+ * distintos: la cookie necesita sameSite "none", que exige secure.
  */
 const opcionesCookie: CookieOptions = {
   httpOnly: true,
   secure: esProduccion,
-  sameSite: "lax",
+  sameSite: esProduccion ? "none" : "lax",
   path: "/",
 };
 

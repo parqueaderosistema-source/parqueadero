@@ -14,9 +14,12 @@ const envSchema = z.object({
 
   PORT: z.coerce.number().int().min(1).max(65535).default(3000),
 
-  FRONTEND_URL: z.url("FRONTEND_URL debe ser una URL").default(
-    "http://localhost:4200",
-  ),
+  // Origen del front permitido por CORS. Sin "/" final: el navegador
+  // envía el origen sin barra y deben coincidir exactamente.
+  FRONTEND_URL: z
+    .url("FRONTEND_URL debe ser una URL")
+    .default("http://localhost:4200")
+    .transform((url) => url.replace(/\/+$/, "")),
 
   MONGODB_URI: z
     .string({ message: "MONGODB_URI no está configurada" })
@@ -45,10 +48,11 @@ const envSchema = z.object({
   APP_TIMEZONE: z.string().default("America/Bogota"),
 
   /**
-   * Número de proxies delante del back (nginx, balanceador).
+   * Número de proxies delante del back (nginx, balanceador, Render).
    * Necesario para que el rate limit vea la IP real del cliente.
+   * Si no se define: 1 en producción y 0 en desarrollo.
    */
-  TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+  TRUST_PROXY: z.coerce.number().int().min(0).optional(),
 });
 
 function cargarEnv() {
@@ -62,7 +66,13 @@ function cargarEnv() {
     throw new Error(`Configuración inválida en .env:\n${detalle}`);
   }
 
-  return resultado.data;
+  const datos = resultado.data;
+
+  return {
+    ...datos,
+    TRUST_PROXY:
+      datos.TRUST_PROXY ?? (datos.NODE_ENV === "production" ? 1 : 0),
+  };
 }
 
 export const env = cargarEnv();
